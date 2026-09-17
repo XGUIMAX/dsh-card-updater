@@ -168,6 +168,7 @@ window.__ModuleLoader__.load({
       'upd.tip.available': '当前 {current}，GitHub 上最新 {latest}；点击前往更新',
       'upd.tip.failed': '检测失败：{error}',
       'upd.tip.nodata': '仓库还没有发布版本标签，无法比对；点击前往 GitHub',
+      'upd.version': '当前安装版本 {v}',
     }
     const en = {
       nav: 'Card Updater',
@@ -320,6 +321,7 @@ window.__ModuleLoader__.load({
       'upd.tip.available': 'Installed {current}, latest {latest} on GitHub; click to open',
       'upd.tip.failed': 'Check failed: {error}',
       'upd.tip.nodata': 'The repository publishes no version yet; click to open GitHub',
+      'upd.version': 'Installed version {v}',
     }
 
     const CSS = [
@@ -358,6 +360,9 @@ window.__ModuleLoader__.load({
       '.dcu-chip.ok{color:var(--dsw-alias-state-success-primary);border-color:var(--dsw-alias-state-success-primary)}',
       '.dcu-chip.warn{color:var(--dsw-alias-state-warn-primary);border-color:var(--dsw-alias-state-warn-primary)}',
       '.dcu-chip.bad{color:var(--dsw-alias-state-error-primary);border-color:var(--dsw-alias-state-error-primary)}',
+      // Version tag next to the update button. Monospace keeps the digits the
+      // same width as the version the button itself prints.
+      '.dcu-ver{font-family:ui-monospace,Consolas,monospace;letter-spacing:.02em;color:var(--dsw-alias-label-primary)}',
       '.dcu-input{height:28px;border-radius:7px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-size:12px;padding:0 10px;width:100%;box-sizing:border-box;min-width:0}',
       '.dcu-input:focus{outline:none;border-color:var(--dsw-alias-brand-primary)}',
       '.dcu-avatar{flex:0 0 auto;width:48px;height:48px;border-radius:10px;overflow:hidden;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1)}',
@@ -1735,6 +1740,12 @@ window.__ModuleLoader__.load({
         checkUpdate(false)
       }, [upd, checkUpdate])
 
+      // The installed version, read from the host half rather than from the last
+      // check, so the label is there the moment the panel opens and moves by
+      // itself once a `git pull` plus a restart lands a new number.
+      const installed = String((u.data && u.data.version) || upd.current || '').trim()
+      const versionLabel = installed ? withV(installed) : ''
+
       useEffect(() => {
         if (u.data && u.data.config && !draft) setDraft(JSON.parse(JSON.stringify(u.data.config)))
       }, [u.data, draft])
@@ -1866,9 +1877,17 @@ window.__ModuleLoader__.load({
             h(
               'div',
               { className: 'dcu-header-actions' },
-              // The plugin's own version check leads the header: it answers about
-              // this panel, not about the cards listed below it, and a separator
-              // keeps the two kinds of action from reading as one row of buttons.
+              // The plugin's own version block leads the header: the number this
+              // copy is running and whether it is current, neither of which is
+              // about the cards below. A separator keeps the two kinds of action
+              // from reading as one row of buttons.
+              versionLabel
+                ? h(
+                    'span',
+                    { className: 'dcu-chip dcu-ver', title: t('upd.version').replace('{v}', versionLabel) },
+                    versionLabel,
+                  )
+                : null,
               h(
                 'button',
                 {
