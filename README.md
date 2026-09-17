@@ -24,6 +24,7 @@
 侧栏底部与「插件市场 / 设置」同排的入口，宽侧栏显示图标加文字，收成窄轨道时显示为图标按钮。同一套面板也在「设置 → 卡片更新器」下。
 
 ```
+<img width="1150" height="406" alt="jiemian" src="https://github.com/user-attachments/assets/d4e6dce4-6a2c-4f89-8376-b98068ee1aad" />
 
 ```
 
