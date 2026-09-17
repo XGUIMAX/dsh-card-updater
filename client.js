@@ -426,12 +426,10 @@ window.__ModuleLoader__.load({
     const REPO_URL = 'https://github.com/XGUIMAX/dsh-card-updater'
 
     /**
-     * Last self-update verdict, kept in module scope so closing and reopening the
-     * panel does not throw away an answer the user just waited for.
+     * Last self-update verdict, kept in module scope so the panel can show an
+     * answer on its first frame, before the check it fires on open has returned.
      */
     let updateMemo = { status: 'idle' }
-    /** When the silent probe last ran, so it stays at one per half hour. */
-    let silentProbeAt = 0
 
     async function apiGet(path) {
       const url = path ? `${BASE}/list?path=${encodeURIComponent(path)}` : `${BASE}/state`
@@ -1685,23 +1683,21 @@ window.__ModuleLoader__.load({
       }, [])
 
       /**
-       * Ask the host half which version GitHub is publishing. A silent probe that
-       * fails leaves the button untouched: turning it red would report a fault the
-       * user never asked about.
+       * Ask the host half which version GitHub is publishing. Automatic runs ride
+       * the host's two-minute cache; the button forces a fresh answer, so a click
+       * is never answered out of the cache.
        */
       const checkUpdate = useCallback(
-        async (silent) => {
-          if (!silent) setUpd({ status: 'busy' })
+        async (force) => {
+          setUpd({ status: 'busy' })
           try {
-            const res = await apiPost({ action: 'checkUpdate' }, 30000)
+            const res = await apiPost({ action: 'checkUpdate', force: !!force }, 30000)
             if (!res || res.ok === false) {
-              if (!silent) {
-                setUpd({
-                  status: 'failed',
-                  error: (res && res.error) || 'failed',
-                  network: !!(res && res.networkError),
-                })
-              }
+              setUpd({
+                status: 'failed',
+                error: (res && res.error) || 'failed',
+                network: !!(res && res.networkError),
+              })
               return
             }
             if (res.hasUpdate) {
@@ -1712,21 +1708,17 @@ window.__ModuleLoader__.load({
               setUpd({ status: 'latest', current: res.current })
             }
           } catch (e) {
-            if (!silent) setUpd({ status: 'failed', error: String(e && e.message ? e.message : e) })
+            setUpd({ status: 'failed', error: String(e && e.message ? e.message : e) })
           }
         },
         [setUpd],
       )
 
-      // One silent probe per half hour, so opening the panel answers the question
-      // without spending a GitHub request on every visit. The memo is read from
-      // module scope on purpose: it is not reactive state, and a verdict already
-      // on screen must not be replaced by a background probe.
+      // Every open asks again, so the verdict on screen was asked for in this
+      // visit rather than inherited from an old one. The two-minute cache in the
+      // host half absorbs repeated opens without spending the GitHub quota.
       useEffect(() => {
-        if (updateMemo.status !== 'idle') return
-        if (Date.now() - silentProbeAt < 30 * 60 * 1000) return
-        silentProbeAt = Date.now()
-        checkUpdate(true)
+        checkUpdate(false)
       }, [checkUpdate])
 
       const onUpdateClick = useCallback(() => {
@@ -1737,7 +1729,9 @@ window.__ModuleLoader__.load({
           openExternal(upd.url || REPO_URL)
           return
         }
-        checkUpdate(false)
+        // A press is an explicit request for a fresh answer, so it skips the cache
+        // the automatic runs are happy to take.
+        checkUpdate(true)
       }, [upd, checkUpdate])
 
       // The installed version, read from the host half rather than from the last

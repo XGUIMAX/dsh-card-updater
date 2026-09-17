@@ -18,7 +18,7 @@
 - **导入新版**：下载好的新卡文件选进来，自动备份旧卡、写入新内容、记录导入时间。
 - **合并进 MVU 版**：把原版卡的新内容同步进 MVU 版，**永不覆盖** MVU 的状态栏脚本、变量定义与 `tavern_helper`。
 - **备份与还原**：每次写入前自动备份，按卡片分组查看，随时回滚到任意一份。
-- **检测插件更新**：面板右上角的「检测更新」会问一次 GitHub。没新版显示「已是最新版」；有新版变成「发现新版 v1.2.0」，点一下直接打开更新页。按钮左边标着当前安装的版本号，它读的是插件自己的 `package.json`，`git pull` 之后会自己跟着变。
+- **检测插件更新**：面板右上角标着当前安装的版本号，每次打开面板都会自动查一次 GitHub。没新版显示「已是最新版」；有新版变成「发现新版 v1.3.0」，点一下直接打开更新页。版本号读的是插件自己的 `package.json`，`git pull` 之后会自己跟着变。
 
 ## 界面
 
@@ -45,13 +45,23 @@
 
 已经在用的 DSH，且有一个 Tavern profile（本说明中默认叫 `tavern`）。插件是 DSH 插件，不是独立程序。
 
+`node` 与 `pnpm` 需要在 `PATH` 里。Windows、macOS、Linux 都支持，安装与卸载脚本按平台各带一份。
+
 ### 安装步骤
 
 1. 把本项目放到任意目录，例如 `~/.dsh/plugins/dsh-card-updater`。
-2. 打开 DSH 终端（**设置 → 通用设置 → 打开 DSH 终端**），`cd` 到该目录，执行：
+2. 打开 DSH 终端（**设置 → 通用设置 → 打开 DSH 终端**），`cd` 到该目录，执行对应平台的脚本。
+
+Windows：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+macOS / Linux：
+
+```bash
+./install.sh
 ```
 
 装到别的 profile 时加参数：
@@ -60,16 +70,33 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -Profile web
 ```
 
+```bash
+./install.sh --profile web
+```
+
 > 命令用 `powershell` 而不是 `pwsh`：Windows 自带的是 Windows PowerShell 5.1，很多机器上并没有安装 PowerShell 7。脚本两个版本都能跑。加 `-ExecutionPolicy Bypass` 是因为默认执行策略通常禁止直接运行 `.ps1`。
+>
+> macOS / Linux 上如果提示权限不足，先执行 `chmod +x install.sh uninstall.sh`。
+>
+> 两套脚本做的是同一件事，改动的是同一份 profile 清单，可以混用：在 Windows 上用 `install.ps1` 装的，也可以在任何平台用 `uninstall.sh` 摘掉。
 
 3. 脚本做三件事：把插件以 `link:` 形式写进 profile 的 `dependencies`、把 `dsh-card-updater` 追加到 `dsh.profile.bundles`、在 profile 目录执行 `pnpm install`。**改动前会把 profile 的 `package.json` 备份成 `package.json.pre-card-updater-<时间戳>`。**
 4. **重启 DSH。** 侧栏底部出现「卡片更新器」即装好。
 
 ### 卸载
 
+Windows：
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\uninstall.ps1                 # 摘除插件，保留卡片数据
 powershell -ExecutionPolicy Bypass -File .\uninstall.ps1 -PurgeData      # 连数据目录一起删除
+```
+
+macOS / Linux：
+
+```bash
+./uninstall.sh                # 摘除插件，保留卡片数据
+./uninstall.sh --purge-data   # 连数据目录一起删除
 ```
 
 同样先备份 `package.json`，再从 `dependencies` 与 `dsh.profile.bundles` 移除条目并 `pnpm install`。重启 DSH 后入口消失。
@@ -163,6 +190,8 @@ localStorage.getItem("auth_token")
 
 **「检测更新」显示暂无发布版本**：仓库还没打过任何版本标签，插件无法比对。见下面的「发版」。
 
+**macOS / Linux 上和 Windows 有什么不一样**：功能完全一致，只有两处跟随平台。一是「打开目录」交给系统自己的文件管理器，macOS 用 `open`，Linux 用 `xdg-open`。二是卡片头像：Windows 上用 System.Drawing 把图缩到 96px 再发给浏览器，其他平台直接把原图发出去由浏览器缩放，第一次打开会多传一点数据，之后走浏览器缓存。
+
 ## 开发
 
 纯 JavaScript，无构建步骤、无第三方依赖。
@@ -180,6 +209,14 @@ client.js      浏览器端：面板、设置区、侧栏入口
 - `POST /dsh-card-updater/action` — 所有操作，取值为 `check` / `importPlain` / `merge` / `updateAndMerge` / `save` / `suggest` / `backupList` / `restoreBackup` / `deleteBackup` / `manualBackup` / `prune` / `verifyIndex` / `openFolder` / `checkUpdate` / `selfcheck` 等
 
 改了 `lib/index.js` 需要重启 DSH；只改 `client.js` 刷新页面即可。
+
+### 平台
+
+宿主端只用 Node 内置模块，没有第三方依赖，路径一律走 `node:path`。DSH 主目录取 `DSH_HOME`，没设时用 `~/.dsh`，三个平台解析到同一个位置。需要跟随平台的地方各有分支：
+
+- 打开文件夹：`explorer.exe` / `open` / `xdg-open`
+- 头像缩放：Windows 走 System.Drawing，其余平台交给浏览器
+- 安装卸载：`install.ps1`、`uninstall.ps1` 与 `install.sh`、`uninstall.sh` 两套
 
 ### 发版
 
