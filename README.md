@@ -43,63 +43,92 @@
 
 ### 前置条件
 
-已经在用的 DSH，且有一个 Tavern profile（本说明中默认叫 `tavern`）。插件是 DSH 插件，不是独立程序。
+已经在用的 DSH，且有一个 profile（本说明中默认叫 `tavern`，Tavern 项目用的就是它）。插件是 DSH 插件，不是独立程序。
 
-`node` 与 `pnpm` 需要在 `PATH` 里。Windows、macOS、Linux 都支持，安装与卸载脚本按平台各带一份。
+### 用 dsh 命令安装
 
-### 安装步骤
+`dsh plugin` 是 DSH 自带的插件管理命令：把参数转给 profile 目录下的 pnpm，装完之后再按**已安装状态**核对 `dsh.profile.bundles` —— 声明了 `dsh.bundle` 的依赖自动进入层栈，被移除的自动离开。所以不必手工改 profile 的 `package.json`。
 
-1. 把本项目放到任意目录，例如 `~/.dsh/plugins/dsh-card-updater`。
-2. 打开 DSH 终端（**设置 → 通用设置 → 打开 DSH 终端**），`cd` 到该目录，执行对应平台的脚本。
+在本项目目录里执行：
+
+```bash
+cd ~/.dsh/plugins/dsh-card-updater
+dsh plugin --profile tavern add .
+```
+
+装到别的 profile 就换名字：
+
+```bash
+dsh plugin --profile web add .
+```
+
+也可以直接从 GitHub 装，不必先 clone：
+
+```bash
+dsh plugin --profile tavern add github:XGUIMAX/dsh-card-updater
+```
+
+两种装法只差插件从哪来。本地目录装的是 `link:`，改源码立刻生效，适合跟随仓库改；GitHub 装的是仓库快照，靠 `dsh plugin update` 更新。
+
+装完**重启 DSH**，侧栏底部出现「卡片更新器」即装好。
+
+> 在 DSH Desktop 的命令行工具里，默认 profile 就是 `tavern`，写 `dsh plugin add .` 就够了，`--profile` 可以省略。
+
+### 卸载
+
+```bash
+dsh plugin --profile tavern remove dsh-card-updater
+```
+
+重启 DSH 后入口消失。配置、备份与头像缓存留在 `~/.dsh/profile-data/tavern/data/tools/card-updater`，要一并清掉就手动删该目录。
+
+### 更新
+
+本地目录装的：在项目目录里 `git pull`，重启 DSH。
+
+GitHub 装的：
+
+```bash
+dsh plugin --profile tavern update dsh-card-updater
+```
+
+面板右上角标着当前版本号，每次打开还会自动查一次 GitHub，有新版就变成可点的「发现新版」。
+
+### 备选：随附脚本
+
+如果 `dsh` 命令不在 `PATH` 里，或者你希望在改 profile 清单之前先留一份备份，可以用仓库里带的脚本。它们做的是同一件事：写 `dependencies`、把插件追加进 `dsh.profile.bundles`、在 profile 目录执行 `pnpm install`，并在动手前把 profile 的 `package.json` 备份成 `package.json.pre-card-updater-<时间戳>`。
 
 Windows：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Profile web
 ```
 
 macOS / Linux：
 
 ```bash
 ./install.sh
-```
-
-装到别的 profile 时加参数：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -Profile web
-```
-
-```bash
 ./install.sh --profile web
 ```
 
-> 命令用 `powershell` 而不是 `pwsh`：Windows 自带的是 Windows PowerShell 5.1，很多机器上并没有安装 PowerShell 7。脚本两个版本都能跑。加 `-ExecutionPolicy Bypass` 是因为默认执行策略通常禁止直接运行 `.ps1`。
->
-> macOS / Linux 上如果提示权限不足，先执行 `chmod +x install.sh uninstall.sh`。
->
-> 两套脚本做的是同一件事，改动的是同一份 profile 清单，可以混用：在 Windows 上用 `install.ps1` 装的，也可以在任何平台用 `uninstall.sh` 摘掉。
-
-3. 脚本做三件事：把插件以 `link:` 形式写进 profile 的 `dependencies`、把 `dsh-card-updater` 追加到 `dsh.profile.bundles`、在 profile 目录执行 `pnpm install`。**改动前会把 profile 的 `package.json` 备份成 `package.json.pre-card-updater-<时间戳>`。**
-4. **重启 DSH。** 侧栏底部出现「卡片更新器」即装好。
-
-### 卸载
-
-Windows：
+卸载：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\uninstall.ps1                 # 摘除插件，保留卡片数据
 powershell -ExecutionPolicy Bypass -File .\uninstall.ps1 -PurgeData      # 连数据目录一起删除
 ```
 
-macOS / Linux：
-
 ```bash
 ./uninstall.sh                # 摘除插件，保留卡片数据
 ./uninstall.sh --purge-data   # 连数据目录一起删除
 ```
 
-同样先备份 `package.json`，再从 `dependencies` 与 `dsh.profile.bundles` 移除条目并 `pnpm install`。重启 DSH 后入口消失。
+> 命令用 `powershell` 而不是 `pwsh`：Windows 自带的是 Windows PowerShell 5.1，很多机器上并没有安装 PowerShell 7。脚本两个版本都能跑。加 `-ExecutionPolicy Bypass` 是因为默认执行策略通常禁止直接运行 `.ps1`。
+>
+> macOS / Linux 上如果提示权限不足，先执行 `chmod +x install.sh uninstall.sh`。
+>
+> 脚本与 `dsh plugin` 可以混用，改的是同一份 profile 清单，两边都幂等。
 
 需要手工回退时：把备份的 `package.json` 覆盖回去，在 profile 目录执行 `pnpm install`，重启 DSH。
 
@@ -216,7 +245,7 @@ client.js      浏览器端：面板、设置区、侧栏入口
 
 - 打开文件夹：`explorer.exe` / `open` / `xdg-open`
 - 头像缩放：Windows 走 System.Drawing，其余平台交给浏览器
-- 安装卸载：`install.ps1`、`uninstall.ps1` 与 `install.sh`、`uninstall.sh` 两套
+- 安装卸载：标准方式是 `dsh plugin --profile <name> add / remove`，跨平台通用；另外随附 PowerShell 与 POSIX 脚本各一套作为备选
 
 ### 发版
 
