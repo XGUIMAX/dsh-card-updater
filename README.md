@@ -23,7 +23,8 @@
 
 侧栏底部与「插件市场 / 设置」同排的入口，宽侧栏显示图标加文字，收成窄轨道时显示为图标按钮。同一套面板也在「设置 → 卡片更新器」下。
 
-<img width="1150" height="406" alt="卡片更新器面板" src="https://github.com/user-attachments/assets/fe9b75e1-6133-4bf4-ad54-65e2d56cc730" />
+<img width="1150" height="406" alt="jiemian" src="https://github.com/user-attachments/assets/154c1155-2297-44f5-b8d7-cef9ad6af9d4" />
+
 
 ## 合并策略
 
