@@ -74,6 +74,30 @@ dsh plugin --profile tavern add github:XGUIMAX/dsh-card-updater
 
 > 在 DSH Desktop 的命令行工具里，默认 profile 就是 `tavern`，写 `dsh plugin add .` 就够了，`--profile` 可以省略。
 
+### 在 dsh-tavern（CLI 独立版）里安装
+
+dsh-tavern 用的是自己的目录，和标准 DSH 的 `~/.dsh` 不同：独立安装时默认根目录是 `~/.dsh-tavern`，它的私有 CLI 运行时也装在里面。所以这条命令有两处和上面不一样 —— `DSH_HOME` 要指过去，执行的也得是运行时里那个 `dsh`，而不是 PATH 上的标准版。
+
+macOS / Linux（按默认目录安装）：
+
+```bash
+DSH_HOME=~/.dsh-tavern ~/.dsh-tavern/runtime/bin/dsh plugin --profile tavern add github:XGUIMAX/dsh-card-updater
+```
+
+Windows（按默认目录安装）：
+
+```powershell
+$env:DSH_HOME = "$env:USERPROFILE\.dsh-tavern"; & "$env:USERPROFILE\.dsh-tavern\runtime\dsh.cmd" plugin --profile tavern add github:XGUIMAX/dsh-card-updater
+```
+
+运行时入口的位置按平台不同：macOS / Linux 上是 `runtime/bin/dsh`，Windows 上是 `runtime\dsh.cmd`，因为 npm 在 Windows 上把命令直接放在 prefix 根目录，不进 `bin`。
+
+安装时如果选的是「2 当前目录」（直接回车就是它）或「3 其他目录」，把上面出现的两处 `~/.dsh-tavern` 一起换成你的实际安装根目录即可。
+
+要卸载就把 `add github:XGUIMAX/dsh-card-updater` 换成 `remove dsh-card-updater`。这里跑的仍然是同一套 `dsh plugin`，所以 `dsh.profile.bundles` 一样会自动维护。
+
+> `dsh plugin` 会调 `pnpm`。dsh-tavern 自带的那个在 `~/.dsh-tavern/tools/bin`（Windows 是 `~/.dsh-tavern\tools`），没在 PATH 里的话先加进去，或者用你系统里已有的 pnpm。
+
 ### 卸载
 
 ```bash
