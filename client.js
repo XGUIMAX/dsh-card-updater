@@ -24,6 +24,7 @@ window.__ModuleLoader__.load({
       'tab.cards': '卡片',
       'tab.settings': '合并设置',
       'strategy.now': '当前策略：{name}',
+      'btn.checkUpdate': '检测更新',
       'btn.checkAll': '检测全部',
       'btn.check': '检测',
       'btn.update': '更新原版',
@@ -101,7 +102,6 @@ window.__ModuleLoader__.load({
       'gate.discord': 'Discord 社区',
       'label.baseline': '基线',
       'btn.importNew': '导入新版',
-      'nav': '卡片更新器',
       'note.noMvu': '未找到同名 MVU 版，可手动填写',
       'note.confirmPair': '按名称前缀推测配对，请确认',
       'note.soloMvu': '独立 MVU 卡（未配对原版，本工具只读不写）',
@@ -156,6 +156,18 @@ window.__ModuleLoader__.load({
       'tag.plain-before-merge': '合并前的原版卡',
       'tag.before-restore': '还原前快照',
       'tag.before-rollback': '回滚前快照',
+      // The panel's own update check: it watches the plugin repository, not a
+      // card, so it keeps its own little vocabulary.
+      'upd.checking': '检测中…',
+      'upd.latest': '已是最新版',
+      'upd.available': '发现新版 {v}',
+      'upd.failed': '检测失败',
+      'upd.nodata': '暂无发布版本',
+      'upd.tip.idle': '检测 GitHub 上是否发布了新版本',
+      'upd.tip.latest': '当前 {current}，已是最新版',
+      'upd.tip.available': '当前 {current}，GitHub 上最新 {latest}；点击前往更新',
+      'upd.tip.failed': '检测失败：{error}',
+      'upd.tip.nodata': '仓库还没有发布版本标签，无法比对；点击前往 GitHub',
     }
     const en = {
       nav: 'Card Updater',
@@ -165,6 +177,7 @@ window.__ModuleLoader__.load({
       'tab.cards': 'Cards',
       'tab.settings': 'Settings',
       'strategy.now': 'Strategy: {name}',
+      'btn.checkUpdate': 'Check update',
       'btn.checkAll': 'Check all',
       'btn.check': 'Check',
       'btn.update': 'Update original',
@@ -243,7 +256,6 @@ window.__ModuleLoader__.load({
       'gate.discord': 'Discord community',
       'label.baseline': 'Baseline',
       'btn.importNew': 'Import new',
-      'nav': 'Card updater',
       'note.noMvu': 'No same-named MVU copy, fill it in by hand',
       'note.confirmPair': 'Paired by name prefix, please confirm',
       'note.soloMvu': 'Standalone MVU card (no original paired; read-only here)',
@@ -298,6 +310,16 @@ window.__ModuleLoader__.load({
       'tag.plain-before-merge': 'Original before merge',
       'tag.before-restore': 'Before restore',
       'tag.before-rollback': 'Before rollback',
+      'upd.checking': 'Checking…',
+      'upd.latest': 'Up to date',
+      'upd.available': 'Update {v}',
+      'upd.failed': 'Check failed',
+      'upd.nodata': 'No release yet',
+      'upd.tip.idle': 'Check GitHub for a newer release',
+      'upd.tip.latest': '{current} is the latest release',
+      'upd.tip.available': 'Installed {current}, latest {latest} on GitHub; click to open',
+      'upd.tip.failed': 'Check failed: {error}',
+      'upd.tip.nodata': 'The repository publishes no version yet; click to open GitHub',
     }
 
     const CSS = [
@@ -323,6 +345,10 @@ window.__ModuleLoader__.load({
       '.dcu-btn:disabled{opacity:.45;cursor:not-allowed}',
       '.dcu-btn.primary{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-bg-base);font-weight:600}',
       '.dcu-btn.ghost{background:transparent}',
+      // State-tinted buttons, used by the panel's own update check so its verdict
+      // is readable from across the panel.
+      '.dcu-btn.ok{border-color:var(--dsw-alias-state-success-primary);color:var(--dsw-alias-state-success-primary)}',
+      '.dcu-btn.bad{border-color:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-state-error-primary)}',
       '.dcu-btn.tiny{height:24px;padding:0 9px;font-size:11px;border-radius:6px}',
       '.dcu-card{border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);padding:12px;display:flex;flex-direction:column;gap:10px}',
       '.dcu-card.flat{background:var(--dsw-alias-bg-layer-2)}',
@@ -390,6 +416,17 @@ window.__ModuleLoader__.load({
 
     /** The community index, where a card's thread can be found by hand. */
     const INDEX_SITE = 'https://odysseia-forum-webpage.pages.dev'
+
+    /** Where this plugin lives; the update button sends the browser here. */
+    const REPO_URL = 'https://github.com/XGUIMAX/dsh-card-updater'
+
+    /**
+     * Last self-update verdict, kept in module scope so closing and reopening the
+     * panel does not throw away an answer the user just waited for.
+     */
+    let updateMemo = { status: 'idle' }
+    /** When the silent probe last ran, so it stays at one per half hour. */
+    let silentProbeAt = 0
 
     async function apiGet(path) {
       const url = path ? `${BASE}/list?path=${encodeURIComponent(path)}` : `${BASE}/state`
@@ -537,6 +574,68 @@ window.__ModuleLoader__.load({
       return (
         'dcu-chip' + (kind === 'ok' ? ' ok' : kind === 'warn' || kind === 'info' ? ' warn' : kind === 'bad' ? ' bad' : '')
       )
+    }
+
+    /** A version as it should read in prose: exactly one leading v. */
+    function withV(value) {
+      const text = String(value == null ? '' : value).trim()
+      if (!text) return ''
+      return /^v/i.test(text) ? text : 'v' + text
+    }
+
+    /**
+     * Hand a URL to the browser. The panel is an ordinary page, so `window.open`
+     * goes first; a popup blocker that turns it down falls back to a synthetic
+     * anchor, which is not filtered the same way.
+     * @param {string} url - the target.
+     */
+    function openExternal(url) {
+      const target = String(url || '').trim()
+      if (!target) return
+      try {
+        const win = window.open(target, '_blank', 'noopener,noreferrer')
+        if (win) {
+          win.opener = null
+          return
+        }
+      } catch {
+        /* blocked: the anchor route below is not treated as a popup */
+      }
+      try {
+        const a = document.createElement('a')
+        a.href = target
+        a.target = '_blank'
+        a.rel = 'noopener noreferrer'
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+      } catch {
+        /* nothing else left to try */
+      }
+    }
+
+    /** The label on the panel's own update button, which doubles as its verdict. */
+    function updateLabel(upd) {
+      if (upd.status === 'busy') return t('upd.checking')
+      if (upd.status === 'available') return t('upd.available').replace('{v}', withV(upd.latest))
+      if (upd.status === 'latest') return t('upd.latest')
+      if (upd.status === 'failed') return t('upd.failed')
+      if (upd.status === 'nodata') return t('upd.nodata')
+      return t('btn.checkUpdate')
+    }
+
+    /** The hover text: version numbers and the reason a check failed live here. */
+    function updateTip(upd) {
+      if (upd.status === 'available') {
+        return t('upd.tip.available').replace('{current}', withV(upd.current)).replace('{latest}', withV(upd.latest))
+      }
+      if (upd.status === 'latest') return t('upd.tip.latest').replace('{current}', withV(upd.current))
+      if (upd.status === 'nodata') return t('upd.tip.nodata')
+      if (upd.status === 'failed') {
+        const base = t('upd.tip.failed').replace('{error}', upd.error || '')
+        return upd.network ? base + ' · ' + t('primary.tunHint') : base
+      }
+      return t('upd.tip.idle')
     }
 
     /**
@@ -1574,6 +1673,67 @@ window.__ModuleLoader__.load({
       const [tab, setTab] = useState('cards')
       const [restore, setRestore] = useState(false)
       const [browse, setBrowse] = useState(null)
+      const [upd, setUpdate] = useState(updateMemo)
+      const setUpd = useCallback((next) => {
+        updateMemo = next
+        setUpdate(next)
+      }, [])
+
+      /**
+       * Ask the host half which version GitHub is publishing. A silent probe that
+       * fails leaves the button untouched: turning it red would report a fault the
+       * user never asked about.
+       */
+      const checkUpdate = useCallback(
+        async (silent) => {
+          if (!silent) setUpd({ status: 'busy' })
+          try {
+            const res = await apiPost({ action: 'checkUpdate' }, 30000)
+            if (!res || res.ok === false) {
+              if (!silent) {
+                setUpd({
+                  status: 'failed',
+                  error: (res && res.error) || 'failed',
+                  network: !!(res && res.networkError),
+                })
+              }
+              return
+            }
+            if (res.hasUpdate) {
+              setUpd({ status: 'available', latest: res.latest, current: res.current, url: res.url })
+            } else if (res.noRelease) {
+              setUpd({ status: 'nodata', current: res.current, url: res.url })
+            } else {
+              setUpd({ status: 'latest', current: res.current })
+            }
+          } catch (e) {
+            if (!silent) setUpd({ status: 'failed', error: String(e && e.message ? e.message : e) })
+          }
+        },
+        [setUpd],
+      )
+
+      // One silent probe per half hour, so opening the panel answers the question
+      // without spending a GitHub request on every visit. The memo is read from
+      // module scope on purpose: it is not reactive state, and a verdict already
+      // on screen must not be replaced by a background probe.
+      useEffect(() => {
+        if (updateMemo.status !== 'idle') return
+        if (Date.now() - silentProbeAt < 30 * 60 * 1000) return
+        silentProbeAt = Date.now()
+        checkUpdate(true)
+      }, [checkUpdate])
+
+      const onUpdateClick = useCallback(() => {
+        // A verdict that names a newer version, or a repository with nothing to
+        // compare against, both end in the same place: the page where the update
+        // actually lives.
+        if (upd.status === 'available' || upd.status === 'nodata') {
+          openExternal(upd.url || REPO_URL)
+          return
+        }
+        checkUpdate(false)
+      }, [upd, checkUpdate])
 
       useEffect(() => {
         if (u.data && u.data.config && !draft) setDraft(JSON.parse(JSON.stringify(u.data.config)))
@@ -1706,6 +1866,29 @@ window.__ModuleLoader__.load({
             h(
               'div',
               { className: 'dcu-header-actions' },
+              // The plugin's own version check leads the header: it answers about
+              // this panel, not about the cards listed below it, and a separator
+              // keeps the two kinds of action from reading as one row of buttons.
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className:
+                    'dcu-btn' +
+                    (upd.status === 'available'
+                      ? ' primary'
+                      : upd.status === 'latest'
+                        ? ' ok'
+                        : upd.status === 'failed'
+                          ? ' bad'
+                          : ''),
+                  disabled: upd.status === 'busy',
+                  title: updateTip(upd),
+                  onClick: onUpdateClick,
+                },
+                updateLabel(upd),
+              ),
+              h('div', { className: 'dcu-bar-sep' }),
               h(
                 'button',
                 { type: 'button', className: 'dcu-btn primary', disabled: u.busy, onClick: () => doCheck(null) },

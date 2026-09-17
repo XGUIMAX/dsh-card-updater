@@ -18,6 +18,7 @@
 - **导入新版**：下载好的新卡文件选进来，自动备份旧卡、写入新内容、记录导入时间。
 - **合并进 MVU 版**：把原版卡的新内容同步进 MVU 版，**永不覆盖** MVU 的状态栏脚本、变量定义与 `tavern_helper`。
 - **备份与还原**：每次写入前自动备份，按卡片分组查看，随时回滚到任意一份。
+- **检测插件更新**：面板右上角的「检测更新」会问一次 GitHub。没新版显示「已是最新版」；有新版变成「发现新版 v1.2.0」，点一下直接打开更新页。
 
 ## 界面
 
@@ -158,6 +159,10 @@ localStorage.getItem("auth_token")
 
 **单卡没有 `character_version`**：插件不会凭空造版本号，合并后仍为空。在卡里填一个初值之后就会正常递增。
 
+**「检测更新」显示检测失败**：先确认浏览器能打开 GitHub。能打开而这里不通，同样是代理没开 TUN 模式。
+
+**「检测更新」显示暂无发布版本**：仓库还没打过任何版本标签，插件无法比对。见下面的「发版」。
+
 ## 开发
 
 纯 JavaScript，无构建步骤、无第三方依赖。
@@ -172,9 +177,22 @@ client.js      浏览器端：面板、设置区、侧栏入口
 - `GET  /dsh-card-updater/state` — 配置与最近报告
 - `GET  /dsh-card-updater/list` — 目录浏览
 - `GET  /dsh-card-updater/avatar` — 卡片头像缩略图
-- `POST /dsh-card-updater/action` — 所有操作，取值为 `check` / `importPlain` / `merge` / `updateAndMerge` / `save` / `suggest` / `backupList` / `restoreBackup` / `deleteBackup` / `manualBackup` / `prune` / `verifyIndex` / `openFolder` / `selfcheck` 等
+- `POST /dsh-card-updater/action` — 所有操作，取值为 `check` / `importPlain` / `merge` / `updateAndMerge` / `save` / `suggest` / `backupList` / `restoreBackup` / `deleteBackup` / `manualBackup` / `prune` / `verifyIndex` / `openFolder` / `checkUpdate` / `selfcheck` 等
 
 改了 `lib/index.js` 需要重启 DSH；只改 `client.js` 刷新页面即可。
+
+### 发版
+
+「检测更新」比对的是本机 `package.json` 里的 `version` 与仓库的 release / tag，所以新版要能被检测到，必须打上对应的标签：
+
+```powershell
+git add -A
+git commit -m "v1.2.0: 这次改了什么"
+git tag v1.2.0
+git push origin main --follow-tags
+```
+
+标签名用 `vX.Y.Z`，且与 `package.json` 的 `version` 保持一致。只推代码不打标签的话，插件会一直认为自己就是最新版。
 
 ## 许可
 
