@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# DSH runtime data: never part of the package
+profiles/
+profile-data/
+sessions/
+storages/
+logs/
+
+# Local state that must not be committed
+config.json
+state.json
+*.local.json
+
+# Backups and caches the plugin produces at runtime
+backups/
+avatar-cache/
+downloads/
+
+# Scratch and backups
+*.bak
+*.bak-*
+*.tmp
+*.tmp-*
+*~
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp

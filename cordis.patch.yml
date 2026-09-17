@@ -1,0 +1,5 @@
+# dsh-card-updater bundle patch: inserts the plugin into a profile's layer stack.
+# Remove this entry (or the plugin row in the profile's dsh.profile.bundles) to detach it.
+- insert:
+    - id: dsh-card-updater
+      name: 'dsh-card-updater'

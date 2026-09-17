@@ -1,0 +1,12 @@
+# Keep line endings stable across platforms: the plugin is plain JS and shell
+# scripts, and a CRLF/LF flip would otherwise rewrite every line of every file.
+* text=auto eol=lf
+
+# Windows scripts stay CRLF so they open cleanly in Notepad and editors that
+# still assume the DOS convention.
+*.ps1 text eol=crlf
+
+*.png binary
+*.jpg binary
+*.webp binary
+*.gif binary
