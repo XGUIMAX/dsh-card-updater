@@ -21,12 +21,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/YOUR-NAME/dsh-card-updater.git"
+    "url": "git+https://github.com/XGUIMAX/dsh-card-updater.git"
   },
   "bugs": {
-    "url": "https://github.com/YOUR-NAME/dsh-card-updater/issues"
+    "url": "https://github.com/XGUIMAX/dsh-card-updater/issues"
   },
-  "homepage": "https://github.com/YOUR-NAME/dsh-card-updater#readme",
+  "homepage": "https://github.com/XGUIMAX/dsh-card-updater#readme",
   "keywords": [
     "dsh",
     "dsh-plugin",
