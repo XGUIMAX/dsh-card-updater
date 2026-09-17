@@ -77,6 +77,7 @@ window.__ModuleLoader__.load({
       'index.bad': '令牌无效或已过期',
       'index.validUntil': '令牌有效，可以检索贴子（{at} 过期）',
       'index.expired': '令牌已于 {at} 过期；去索引站重新登录可拿新的',
+      'index.expiring': '令牌将于 {at} 过期，建议现在退出登录重新取一次',
       'index.renew': '重新获取令牌',
       'index.howto':
         '获取方式：在索引站页面按 F12 打开控制台，执行 localStorage.getItem("auth_token")，把返回值（不含引号）粘贴到这里。令牌只保存在本机配置里，仅用于请求 forum.shimmerday.top。索引站的令牌有效期约 7 天，过期后重新登录一次再取就行。',
@@ -235,6 +236,7 @@ window.__ModuleLoader__.load({
       'index.bad': 'Token invalid or expired',
       'index.validUntil': 'Token works; expires {at}',
       'index.expired': 'Token expired on {at}; sign in again for a fresh one',
+      'index.expiring': 'Token expires {at}; sign out and back in now to renew it',
       'index.renew': 'Get a new token',
       'index.howto':
         'On the index site press F12, run localStorage.getItem("auth_token") in the console, and paste the value here without quotes. It is stored locally and sent only to forum.shimmerday.top. These tokens last about seven days; sign in again to get a fresh one.',
@@ -643,10 +645,20 @@ window.__ModuleLoader__.load({
      * @param {object} res - the host half's answer.
      * @returns {{kind: string, text: string, renew: boolean}} badge state.
      */
+    /** How close to expiry a token has to be before it is worth flagging. */
+    const TOKEN_WARN_MS = 24 * 60 * 60 * 1000
+
     function describeVerify(res) {
       const ok = !!(res && res.ok && res.loggedIn)
-      const at = res && res.expiresAt ? new Date(res.expiresAt).toLocaleString() : ''
+      const expires = res && res.expiresAt ? new Date(res.expiresAt) : null
+      const at = expires ? expires.toLocaleString() : ''
       if (ok) {
+        // A token about to lapse is worth saying out loud, because renewing it
+        // means signing out of the index site and back in. That is a poor thing
+        // to discover only once every card check has started failing.
+        if (expires && expires.getTime() - Date.now() < TOKEN_WARN_MS) {
+          return { kind: 'warn', text: t('index.expiring').replace('{at}', at), renew: true }
+        }
         return {
           kind: 'ok',
           text: at ? t('index.validUntil').replace('{at}', at) : t('index.ok'),
