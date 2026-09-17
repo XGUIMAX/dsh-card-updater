@@ -62,17 +62,19 @@
 ### 安装步骤
 
 1. 把本项目放到任意目录，例如 `~/.dsh/plugins/dsh-card-updater`。
-2. 打开 DSH 终端（**设置 → 通用设置 → 打开 DSH 终端**），在该目录下执行：
+2. 打开 DSH 终端（**设置 → 通用设置 → 打开 DSH 终端**），`cd` 到该目录，执行：
 
 ```powershell
-pwsh -File install.ps1
+powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
 装到别的 profile 时加参数：
 
 ```powershell
-pwsh -File install.ps1 -Profile web
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Profile web
 ```
+
+> 命令用 `powershell` 而不是 `pwsh`：Windows 自带的是 Windows PowerShell 5.1，很多机器上并没有安装 PowerShell 7。脚本两个版本都能跑。加 `-ExecutionPolicy Bypass` 是因为默认执行策略通常禁止直接运行 `.ps1`。
 
 3. 脚本做三件事：把插件以 `link:` 形式写进 profile 的 `dependencies`、把 `dsh-card-updater` 追加到 `dsh.profile.bundles`、在 profile 目录执行 `pnpm install`。**改动前会把 profile 的 `package.json` 备份成 `package.json.pre-card-updater-<时间戳>`。**
 4. **重启 DSH。** 侧栏底部出现「卡片更新器」即装好。
@@ -80,8 +82,8 @@ pwsh -File install.ps1 -Profile web
 ### 卸载
 
 ```powershell
-pwsh -File uninstall.ps1                 # 摘除插件，保留卡片数据
-pwsh -File uninstall.ps1 -PurgeData      # 连数据目录一起删除
+powershell -ExecutionPolicy Bypass -File .\uninstall.ps1                 # 摘除插件，保留卡片数据
+powershell -ExecutionPolicy Bypass -File .\uninstall.ps1 -PurgeData      # 连数据目录一起删除
 ```
 
 同样先备份 `package.json`，再从 `dependencies` 与 `dsh.profile.bundles` 移除条目并 `pnpm install`。重启 DSH 后入口消失。

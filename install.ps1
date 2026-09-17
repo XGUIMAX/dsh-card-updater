@@ -4,8 +4,12 @@
 # stays live) and to its bundle list, then reinstalls the profile. The profile
 # package.json is backed up first. Nothing outside the chosen profile changes.
 #
-#   pwsh -File install.ps1
-#   pwsh -File install.ps1 -Profile web
+# Run it from this folder:
+#   powershell -ExecutionPolicy Bypass -File .\install.ps1
+#   powershell -ExecutionPolicy Bypass -File .\install.ps1 -Profile web
+#
+# `powershell` rather than `pwsh`: Windows ships Windows PowerShell 5.1 and many
+# machines have no PowerShell 7. This script runs on either.
 #
 # After this, restart DSH. The plugin appears as a sidebar-foot entry and under
 # Settings -> Card Updater.

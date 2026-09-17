@@ -5,9 +5,13 @@
 # in the profile untouched. The profile package.json is backed up first, and the
 # plugin's own data directory is kept unless -PurgeData is given.
 #
-#   pwsh -File uninstall.ps1                 # detach, keep card-updater data
-#   pwsh -File uninstall.ps1 -PurgeData      # detach and delete its data dir
-#   pwsh -File uninstall.ps1 -Profile web    # target another profile
+# Run it from this folder:
+#   powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
+#   powershell -ExecutionPolicy Bypass -File .\uninstall.ps1 -PurgeData
+#   powershell -ExecutionPolicy Bypass -File .\uninstall.ps1 -Profile web
+#
+# `powershell` rather than `pwsh`: Windows ships Windows PowerShell 5.1 and many
+# machines have no PowerShell 7. This script runs on either.
 #
 # Nothing outside the chosen profile is modified.
 
