@@ -43,6 +43,7 @@ window.__ModuleLoader__.load({
       'ok.manualBackup': '已手动备份全部卡片',
       'btn.close': '关闭',
       'btn.reload': '重新载入',
+      'btn.reload.hint': '重新读取后台状态；未保存的改动会被丢弃',
       'btn.rollback': '恢复到此备份',
       'btn.autoCheck': '自动检测',
       'strategy.title': '合并策略',
@@ -201,6 +202,7 @@ window.__ModuleLoader__.load({
       'ok.manualBackup': 'All cards backed up manually',
       'btn.close': 'Close',
       'btn.reload': 'Reload',
+      'btn.reload.hint': 'Re-read the host state; unsaved edits are dropped',
       'btn.rollback': 'Restore this backup',
       'btn.autoCheck': 'Auto check',
       'strategy.title': 'Merge strategy',
@@ -636,6 +638,39 @@ window.__ModuleLoader__.load({
       if (upd.status === 'failed') return t('upd.failed')
       if (upd.status === 'nodata') return t('upd.nodata')
       return t('btn.checkUpdate')
+    }
+
+    /**
+     * Copy the host half's own fields from `fresh` into a draft, leaving every
+     * field the user can type in exactly as they left it.
+     *
+     * The host writes check verdicts, merge records, baselines and file
+     * signatures into the same entry the user edits, so a draft taken before a
+     * check would otherwise undo that check on the next save.
+     * @param {object} draft - the config being edited.
+     * @param {object} fresh - the host half's current config.
+     * @returns {object} a merged copy.
+     */
+    function mergeHostState(draft, fresh) {
+      if (!draft || !fresh) return draft
+      const latest = new Map((fresh.cards || []).map((c) => [c.id, c]))
+      const next = JSON.parse(JSON.stringify(draft))
+      next.cards = (next.cards || []).map((entry) => {
+        const host = latest.get(entry.id)
+        if (!host) return entry
+        // The release link and the search term are typed by the user; every other
+        // field on `primary` is the host's own reading of that link.
+        const mine = entry.primary || {}
+        entry.primary = { ...(host.primary || {}), url: mine.url, match: mine.match }
+        if (host.plain) entry.plain = { ...(entry.plain || {}), sig: host.plain.sig }
+        if (host.mvu) entry.mvu = { ...(entry.mvu || {}), sig: host.mvu.sig }
+        for (const key of ['updatedAt', 'mergedAt', 'lastCheckSummary', 'pairVia']) {
+          if (host[key] === undefined) delete entry[key]
+          else entry[key] = host[key]
+        }
+        return entry
+      })
+      return next
     }
 
     /**
@@ -1788,10 +1823,12 @@ window.__ModuleLoader__.load({
       const installed = String((u.data && u.data.version) || upd.current || '').trim()
       const versionLabel = installed ? withV(installed) : ''
 
-      useEffect(() => {
-        if (u.data && u.data.config && !draft) setDraft(JSON.parse(JSON.stringify(u.data.config)))
-      }, [u.data, draft])
-
+      // `cfg` is the draft while the user has edits in flight, and the host's
+      // config the rest of the time. Nothing is copied into a draft on arrival:
+      // doing that pinned the panel to a snapshot, and since the host half writes
+      // check results, merge records and baselines into that same config, the
+      // snapshot went stale the moment anything ran. The old verdict then stayed
+      // on screen until the panel was closed and reopened.
       const cfg = draft || (u.data ? u.data.config : null)
       const dirty = !!(draft && u.data && JSON.stringify(draft) !== JSON.stringify(u.data.config))
       const cards = cfg && cfg.cards ? cfg.cards : []
@@ -1803,7 +1840,12 @@ window.__ModuleLoader__.load({
       )
 
       const save = useCallback(async () => {
-        const res = await u.run('save', { config: draft }, t('ok.saved'))
+        // The host writes into the same config this draft was copied from, so its
+        // fields are re-taken from the latest state before writing back. Without
+        // that, saving an unrelated edit would quietly undo the last check.
+        const base = u.data && u.data.config
+        const payload = base ? mergeHostState(draft, base) : draft
+        const res = await u.run('save', { config: payload }, t('ok.saved'))
         // Drop the draft only when the write actually landed. Clearing it on a
         // failed save would throw away the very edits that failed to store, with
         // nothing on screen left to retry from.
@@ -1815,9 +1857,13 @@ window.__ModuleLoader__.load({
       const doUpdateMerge = useCallback((id) => u.run('updateAndMerge', { cardId: id }, t('ok.updateMerge')), [u])
 
       const rescan = useCallback(async () => {
+        // `suggest` writes the rescan to disk itself, so there is nothing worth
+        // keeping in a draft: reloading leaves the view reading the host's config
+        // directly, which is also what lets a later check show up immediately.
         const res = await apiPost({ action: 'suggest' })
         if (res && res.ok && res.config) {
-          setDraft(JSON.parse(JSON.stringify(res.config)))
+          setDraft(null)
+          await u.load()
           u.push(t('btn.rescan'), 'ok')
         } else if (res && res.error) {
           u.push(res.error, 'bad')
@@ -1863,7 +1909,10 @@ window.__ModuleLoader__.load({
 
       const addEntry = useCallback(() => {
         setDraft((prev) => {
-          const next = JSON.parse(JSON.stringify(prev || { cards: [] }))
+          // Start from the host's config when there is no draft yet: an empty
+          // base would be a config that has lost every existing card.
+          const base = prev || (u.data && u.data.config) || { cards: [] }
+          const next = JSON.parse(JSON.stringify(base))
           next.cards = [
             ...(next.cards || []),
             {
@@ -1878,7 +1927,20 @@ window.__ModuleLoader__.load({
           ]
           return next
         })
-      }, [])
+      }, [u.data])
+
+      /**
+       * Re-read the host's state and drop any local draft.
+       *
+       * Every host action already reloads when it finishes, so this is the way
+       * out for the two cases that leaves: something outside the panel wrote to
+       * the config, or a view still looks like it is showing old news.
+       */
+      const reload = useCallback(async () => {
+        setDraft(null)
+        await u.load()
+        u.push(t('btn.reload'), 'ok')
+      }, [u])
 
       /**
        * Deleting a card is the one edit that reads as immediate: leaving it in
@@ -2030,6 +2092,17 @@ window.__ModuleLoader__.load({
               t('btn.rescan'),
             ),
             h('button', { type: 'button', className: 'dcu-btn tiny ghost', disabled: u.busy, onClick: addEntry }, t('btn.add')),
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'dcu-btn tiny ghost',
+                disabled: u.busy,
+                title: t('btn.reload.hint'),
+                onClick: reload,
+              },
+              t('btn.reload'),
+            ),
           ),
           tab === 'settings' ? h(SettingsTab, { cfg, setCfg: setDraft }) : null,
           tab === 'cards' && !cards.length
