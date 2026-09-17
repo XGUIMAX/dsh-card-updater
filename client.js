@@ -75,8 +75,11 @@ window.__ModuleLoader__.load({
       'index.checking': '验证中…',
       'index.ok': '令牌有效，可以检索贴子',
       'index.bad': '令牌无效或已过期',
+      'index.validUntil': '令牌有效，可以检索贴子（{at} 过期）',
+      'index.expired': '令牌已于 {at} 过期；去索引站重新登录可拿新的',
+      'index.renew': '重新获取令牌',
       'index.howto':
-        '获取方式：在索引站页面按 F12 打开控制台，执行 localStorage.getItem("auth_token")，把返回值（不含引号）粘贴到这里。令牌只保存在本机配置里，仅用于请求 forum.shimmerday.top。',
+        '获取方式：在索引站页面按 F12 打开控制台，执行 localStorage.getItem("auth_token")，把返回值（不含引号）粘贴到这里。令牌只保存在本机配置里，仅用于请求 forum.shimmerday.top。索引站的令牌有效期约 7 天，过期后重新登录一次再取就行。',
       'primary.changed': '贴子有变化',
       'primary.feed': '动态提到',
       'primary.discordNeedToken': '这是 Discord 贴子链接，请在「合并设置」里填入索引站令牌',
@@ -230,8 +233,11 @@ window.__ModuleLoader__.load({
       'index.checking': 'verifying…',
       'index.ok': 'Token works, threads are readable',
       'index.bad': 'Token invalid or expired',
+      'index.validUntil': 'Token works; expires {at}',
+      'index.expired': 'Token expired on {at}; sign in again for a fresh one',
+      'index.renew': 'Get a new token',
       'index.howto':
-        'On the index site press F12, run localStorage.getItem("auth_token") in the console, and paste the value here without quotes. It is stored locally and sent only to forum.shimmerday.top.',
+        'On the index site press F12, run localStorage.getItem("auth_token") in the console, and paste the value here without quotes. It is stored locally and sent only to forum.shimmerday.top. These tokens last about seven days; sign in again to get a fresh one.',
       'primary.changed': 'Thread changed',
       'primary.feed': 'Feed mentions',
       'primary.discordNeedToken': 'Discord thread link: add an index token under Settings',
@@ -421,6 +427,9 @@ window.__ModuleLoader__.load({
 
     /** The community index, where a card's thread can be found by hand. */
     const INDEX_SITE = 'https://odysseia-forum-webpage.pages.dev'
+
+    /** The index site's Discord sign-in, which is where a fresh token comes from. */
+    const INDEX_LOGIN = INDEX_SITE + '/login'
 
     /** Where this plugin lives; the update button sends the browser here. */
     const REPO_URL = 'https://github.com/XGUIMAX/dsh-card-updater'
@@ -625,6 +634,29 @@ window.__ModuleLoader__.load({
       if (upd.status === 'failed') return t('upd.failed')
       if (upd.status === 'nodata') return t('upd.nodata')
       return t('btn.checkUpdate')
+    }
+
+    /**
+     * Turn a verifyIndex answer into the line shown under the token field. An
+     * expired token is named and dated, because "invalid or expired" leaves the
+     * user guessing whether to retype this one or go and fetch a new one.
+     * @param {object} res - the host half's answer.
+     * @returns {{kind: string, text: string, renew: boolean}} badge state.
+     */
+    function describeVerify(res) {
+      const ok = !!(res && res.ok && res.loggedIn)
+      const at = res && res.expiresAt ? new Date(res.expiresAt).toLocaleString() : ''
+      if (ok) {
+        return {
+          kind: 'ok',
+          text: at ? t('index.validUntil').replace('{at}', at) : t('index.ok'),
+          renew: false,
+        }
+      }
+      if (res && res.expired) {
+        return { kind: 'bad', text: t('index.expired').replace('{at}', at), renew: true }
+      }
+      return { kind: 'bad', text: (res && res.error) || t('index.bad'), renew: !!(res && res.loginUrl) }
     }
 
     /** The hover text: version numbers and the reason a check failed live here. */
@@ -1493,14 +1525,9 @@ window.__ModuleLoader__.load({
           setChecking(true)
           try {
             await apiPost({ action: 'save', config: { ...cfg, indexToken: token } })
-            const res = await apiPost({ action: 'verifyIndex', token })
-            const ok = !!(res && res.ok && res.loggedIn)
-            setVerify({
-              kind: ok ? 'ok' : 'bad',
-              text: ok ? t('index.ok') : (res && res.error) || t('index.bad'),
-            })
+            setVerify(describeVerify(await apiPost({ action: 'verifyIndex', token })))
           } catch (e) {
-            setVerify({ kind: 'bad', text: String(e && e.message ? e.message : e) })
+            setVerify({ kind: 'bad', text: String(e && e.message ? e.message : e), renew: false })
           } finally {
             setChecking(false)
           }
@@ -1510,18 +1537,14 @@ window.__ModuleLoader__.load({
 
       // Re-check the stored token when the panel opens, so the badge shows the
       // live state instead of whatever the previous visit happened to leave.
+      // This is also how an expired token announces itself, with nothing to press.
       useEffect(() => {
         const stored = String((cfg && cfg.indexToken) || '').trim()
         if (!stored) return undefined
         let alive = true
         apiPost({ action: 'verifyIndex', token: stored })
           .then((res) => {
-            if (!alive) return
-            const ok = !!(res && res.ok && res.loggedIn)
-            setVerify({
-              kind: ok ? 'ok' : 'bad',
-              text: ok ? t('index.ok') : (res && res.error) || t('index.bad'),
-            })
+            if (alive) setVerify(describeVerify(res))
           })
           .catch(() => {})
         return () => {
@@ -1648,7 +1671,20 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dcu-sub' }, t('index.howto')),
           h('div', { className: 'dcu-sub' }, t('index.netHint')),
           verify
-            ? h('div', { className: 'dcu-row' }, h('span', { className: chipClass(verify.kind) }, verify.text))
+            ? h(
+                'div',
+                { className: 'dcu-row' },
+                h('span', { className: chipClass(verify.kind) }, verify.text),
+                // The site is the only place a new token can be had, so the badge
+                // that reports a dead one also offers the way to replace it.
+                verify.renew
+                  ? h(
+                      'button',
+                      { type: 'button', className: 'dcu-btn tiny ghost', onClick: () => openExternal(INDEX_LOGIN) },
+                      t('index.renew'),
+                    )
+                  : null,
+              )
             : null,
           checking ? h('div', { className: 'dcu-sub' }, t('index.checking')) : null,
         ),
