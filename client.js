@@ -150,6 +150,10 @@ window.__ModuleLoader__.load({
       'tools.sortName': '按名称',
       'tools.empty': '没有符合筛选条件的卡片',
       'tools.count': '{shown} / {total}',
+      'tavern.missing.title': '需要先安装 DSH Tavern',
+      'tavern.missing.desc':
+        '本插件是基于 DSH Tavern 的功能插件，请先安装 DSH Tavern。人物卡、卡片工作台与游玩数据都由它提供，这个插件只负责比对远端更新、更新原版卡并合并进 MVU 版。',
+      'tavern.missing.open': '打开 DSH Tavern 仓库',
       'ok.merge': '合并完成',
       'ok.updateMerge': '更新并合并完成',
       'ok.restore': '已从备份恢复',
@@ -330,6 +334,10 @@ window.__ModuleLoader__.load({
       'tools.sortName': 'By name',
       'tools.empty': 'No card matches the filter',
       'tools.count': '{shown} / {total}',
+      'tavern.missing.title': 'DSH Tavern is required',
+      'tavern.missing.desc':
+        'This plugin is a companion to DSH Tavern, which has to be installed first. Tavern owns the cards, the card workspace and the play data; this plugin only diffs remote updates, refreshes the original card and merges into the MVU copy.',
+      'tavern.missing.open': 'Open the DSH Tavern repository',
       'ok.merge': 'Merge finished',
       'ok.updateMerge': 'Update + merge finished',
       'ok.restore': 'Restored from backup',
@@ -2265,6 +2273,36 @@ window.__ModuleLoader__.load({
         },
         [draft, u],
       )
+
+      // Without Tavern there is nothing here to manage: every card, every debug
+      // record and every merge target comes from it. Saying so beats an empty
+      // list, which reads like a broken plugin rather than a missing companion.
+      const tavern = u.data && u.data.tavern
+      if (tavern && !tavern.installed) {
+        return h(
+          'div',
+          { className: 'dcu-root' },
+          h(
+            'div',
+            { className: 'dcu-wrap' },
+            h(
+              'div',
+              { className: 'dcu-card' },
+              h('div', { className: 'dcu-title', style: { fontSize: 13 } }, t('tavern.missing.title')),
+              h('div', { className: 'dcu-sub' }, t('tavern.missing.desc')),
+              h(
+                'div',
+                { className: 'dcu-row' },
+                h(
+                  'button',
+                  { type: 'button', className: 'dcu-btn tiny', onClick: () => openExternal(tavern.url) },
+                  t('tavern.missing.open'),
+                ),
+              ),
+            ),
+          ),
+        )
+      }
 
       return h(
         'div',

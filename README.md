@@ -66,7 +66,11 @@
 
 ### 前置条件
 
-已经在用的 DSH，且有一个 profile（本说明中默认叫 `tavern`，Tavern 项目用的就是它）。插件是 DSH 插件，不是独立程序。
+**先装 DSH Tavern。** 这个插件是它的伴生工具：人物卡、卡片工作台对话与游玩数据都由 Tavern 提供，插件只负责比对远端更新、更新原版卡、把变更合并进 MVU 版。没装 Tavern 时打开面板会直接说明并给出安装地址，而不是显示一个空列表。
+
+Tavern 地址：https://github.com/flizzywine/dsh-tavern
+
+此外需要已经在用的 DSH，且有一个 profile（本说明中默认叫 `tavern`，Tavern 项目用的就是它）。插件是 DSH 插件，不是独立程序。
 
 ### 用 dsh 命令安装
 
