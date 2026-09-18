@@ -386,6 +386,12 @@ window.__ModuleLoader__.load({
       '.dcu-head{display:flex;align-items:flex-start;gap:10px}',
       '.dcu-fields{display:flex;flex-direction:column;gap:7px}',
       '.dcu-actions{display:flex;align-items:center;gap:6px;justify-content:flex-end;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--dsw-alias-border-l1)}',
+      // A per-card result sits at the left of that card's own action row. The
+      // buttons keep their right-aligned place and the sentence reads as being
+      // about this card; `flex:1` is what pushes it over there.
+      '.dcu-note{flex:1 1 auto;min-width:0;margin-right:6px;font-size:11px;line-height:1.5;text-align:left;word-break:break-word}',
+      '.dcu-note.ok{color:var(--dsw-alias-state-success-primary)}',
+      '.dcu-note.bad{color:var(--dsw-alias-state-error-primary)}',
       // Label column sized to the longest label and right-aligned, so every input
       // in the card starts at the same x.
       '.dcu-slot{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center}',
@@ -841,23 +847,32 @@ window.__ModuleLoader__.load({
       }, [load])
 
       const run = useCallback(
-        async (action, args, okText) => {
+        async (action, args, okText, cardId) => {
           setBusy(true)
           setMessage(null)
+          // A message pinned to a card is rendered on that card's own action row,
+          // so a result about one card does not have to be read at the top of the
+          // panel and matched back to whatever it was about. Anything without a
+          // card id stays in the header, where the whole-panel actions report.
+          const at = cardId || null
           try {
             const res = await apiPost({ action, ...(args || {}) })
             if (res && res.ok === false) {
-              setMessage({ kind: 'bad', text: `${okText || action}：${res.error || 'failed'}` })
+              // A gated source answers with a sentence meant to be read as advice;
+              // prefixing it with the action name would bury it under a label the
+              // user already knows.
+              const text = res.gated ? res.error : `${okText || action}：${res.error || 'failed'}`
+              setMessage({ kind: 'bad', text, cardId: at })
               push(`${okText || action} 失败：${res.error || 'failed'}`, 'bad')
             } else {
-              if (okText) setMessage({ kind: 'ok', text: okText + summarize(res) })
+              if (okText) setMessage({ kind: 'ok', text: okText + summarize(res), cardId: at })
               push((okText || action) + summarize(res), 'ok')
             }
             await load()
             return res
           } catch (e) {
             const text = String(e && e.message ? e.message : e)
-            setMessage({ kind: 'bad', text })
+            setMessage({ kind: 'bad', text, cardId: at })
             push(`${action} 失败：${text}`, 'bad')
             return { ok: false, error: text }
           } finally {
@@ -874,6 +889,8 @@ window.__ModuleLoader__.load({
 
     function EntryCard({ entry, u, patch, onPick, onCheck, onImportNew, onUpdate, onMerge, onUpdateMerge, onRemove }) {
       const st = statusOf(entry, u.data ? u.data.lastReport : null)
+      // This card's own last result, if the last thing that ran was about it.
+      const note = u.message && u.message.cardId === entry.id ? u.message : null
       const linked = !!normalizeSrc(entry.plain && entry.plain.src)
       const hasMvu = !!(entry.mvu && entry.mvu.path)
       const primaryUrl = String((entry.primary && entry.primary.url) || '').trim()
@@ -1055,6 +1072,16 @@ window.__ModuleLoader__.load({
         h(
           'div',
           { className: 'dcu-actions' },
+          // What happened to one card belongs on that card's own row, next to the
+          // buttons that caused it, rather than at the top of the panel where it
+          // has to be matched back to the card it was about.
+          note
+            ? h(
+                'div',
+                { className: 'dcu-note ' + (note.kind === 'bad' ? 'bad' : 'ok') },
+                (note.kind === 'bad' ? '⚠ ' : '✓ ') + note.text,
+              )
+            : null,
           h(
             'div',
             { className: 'dcu-sub dcu-grow' },
@@ -1871,10 +1898,21 @@ window.__ModuleLoader__.load({
         if (res && res.ok !== false) setDraft(null)
       }, [draft, u])
 
-      const doCheck = useCallback((ids) => u.run('check', { ids: ids || null }, t('ok.check')), [u])
-      const doUpdate = useCallback((id) => u.run('apply', { cardId: id }, t('ok.apply')), [u])
-      const doMerge = useCallback((id) => u.run('merge', { cardId: id }, t('ok.merge')), [u])
-      const doUpdateMerge = useCallback((id) => u.run('updateAndMerge', { cardId: id }, t('ok.updateMerge')), [u])
+      const doCheck = useCallback(
+        // A single-card check reports on its own row; "check all" reports at the
+        // top of the panel, where it belongs to no card in particular.
+        (ids) =>
+          u.run(
+            'check',
+            { ids: ids || null },
+            t('ok.check'),
+            Array.isArray(ids) && ids.length === 1 ? ids[0] : null,
+          ),
+        [u],
+      )
+      const doUpdate = useCallback((id) => u.run('apply', { cardId: id }, t('ok.apply'), id), [u])
+      const doMerge = useCallback((id) => u.run('merge', { cardId: id }, t('ok.merge'), id), [u])
+      const doUpdateMerge = useCallback((id) => u.run('updateAndMerge', { cardId: id }, t('ok.updateMerge'), id), [u])
 
       const rescan = useCallback(async () => {
         // `suggest` writes the rescan to disk itself, so there is nothing worth
@@ -1905,7 +1943,7 @@ window.__ModuleLoader__.load({
           // Import and plain path-picking share one browser; the difference is
           // what happens to the chosen file afterwards.
           if (req.mode === 'import') {
-            u.run('importPlain', { cardId: req.id, from: path }, t('ok.imported'))
+            u.run('importPlain', { cardId: req.id, from: path }, t('ok.imported'), req.id)
             return
           }
           patch(req.id, req.key, path)
@@ -2047,7 +2085,7 @@ window.__ModuleLoader__.load({
                 : null,
             ),
           ),
-          u.message
+          u.message && !u.message.cardId
             ? h(
                 'div',
                 { className: 'dcu-card flat' },
