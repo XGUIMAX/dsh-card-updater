@@ -139,6 +139,16 @@ window.__ModuleLoader__.load({
       'debug.opened': '已打开卡片 Agent 调试对话',
       'debug.failed': '打开调试失败',
       'debug.noReply': '卡片工作台没有响应，请确认 Tavern 的对话界面已打开',
+      'debug.busy': '{who}正在调试中',
+      'tools.search': '搜索卡名、关键词或路径…',
+      'tools.all': '全部',
+      'tools.plainOnly': '只有原卡',
+      'tools.mvuOnly': '只有 MVU 版',
+      'tools.sortAuto': '默认：有更新优先',
+      'tools.sortImported': '按导入时间',
+      'tools.sortName': '按名称',
+      'tools.empty': '没有符合筛选条件的卡片',
+      'tools.count': '{shown} / {total}',
       'ok.merge': '合并完成',
       'ok.updateMerge': '更新并合并完成',
       'ok.restore': '已从备份恢复',
@@ -308,6 +318,16 @@ window.__ModuleLoader__.load({
       'debug.opened': 'Opened the card agent debug conversation',
       'debug.failed': 'Could not open the debug conversation',
       'debug.noReply': 'The card workspace did not answer; check that Tavern is open',
+      'debug.busy': '{who} being debugged',
+      'tools.search': 'Search name, marker or path…',
+      'tools.all': 'All',
+      'tools.plainOnly': 'Original only',
+      'tools.mvuOnly': 'MVU only',
+      'tools.sortAuto': 'Default: news first',
+      'tools.sortImported': 'By import time',
+      'tools.sortName': 'By name',
+      'tools.empty': 'No card matches the filter',
+      'tools.count': '{shown} / {total}',
       'ok.merge': 'Merge finished',
       'ok.updateMerge': 'Update + merge finished',
       'ok.restore': 'Restored from backup',
@@ -419,6 +439,11 @@ window.__ModuleLoader__.load({
       '.dcu-dbg{font-size:10px}',
       '.dcu-dbg-open{cursor:pointer}',
       '.dcu-dbg-open:disabled{opacity:.55;cursor:not-allowed}',
+      // One row for the card list's own controls, kept apart from the view bar so
+      // the panel-level actions and the list-level ones do not read as one set.
+      '.dcu-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-2)}',
+      '.dcu-select{height:28px;border-radius:7px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-size:12px;padding:0 8px;cursor:pointer}',
+      '.dcu-select:focus{outline:none;border-color:var(--dsw-alias-brand-primary)}',
       // Label column sized to the longest label and right-aligned, so every input
       // in the card starts at the same x.
       '.dcu-slot{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center}',
@@ -1015,6 +1040,11 @@ window.__ModuleLoader__.load({
       const debugSlot = (path, who) => {
         if (!path) return null
         const ws = workspaceOf(u.data, path)
+        // A conversation that wrote seconds ago is being worked on right now, so
+        // saying "debugged" here would report the check as finished mid-run.
+        if (ws && ws.busy) {
+          return h('span', { className: 'dcu-chip warn dcu-dbg' }, t('debug.busy').replace('{who}', who))
+        }
         const said = t('debug.done').replace('{who}', who)
         if (ws && ws.debugAt) {
           return h(
@@ -1958,6 +1988,9 @@ window.__ModuleLoader__.load({
       const [tab, setTab] = useState('cards')
       const [restore, setRestore] = useState(false)
       const [browse, setBrowse] = useState(null)
+      const [query, setQuery] = useState('')
+      const [filter, setFilter] = useState('all')
+      const [sort, setSort] = useState('auto')
       const [upd, setUpdate] = useState(updateMemo)
       const setUpd = useCallback((next) => {
         updateMemo = next
@@ -2035,15 +2068,40 @@ window.__ModuleLoader__.load({
       // leave it buried under everything that stayed put. Array.sort is stable, so
       // cards of equal standing keep the order they were already in, and an
       // untouched panel looks exactly as the config lists it.
-      // Ranking: cards with news first, then cards the workspace has never opened
-      // a conversation for, then everything else. A card nothing has looked at is
-      // the one most likely to be broken, so it sits above the ones already
-      // checked. Array.sort is stable, so equal cards keep the config's order.
+      // Ranking. The default puts cards carrying news first and cards the workspace
+      // has never opened next. Choosing a sort in the toolbar replaces both: an
+      // order the user picked is the one they are looking for, and re-imposing the
+      // automatic ranking on top of it would fight the choice they just made.
       const cardRank = (entry) => {
         if (statusOf(entry, report).kind === 'warn') return 0
         return needsDebug(entry, u.data) ? 1 : 2
       }
-      const cards = [...((cfg && cfg.cards) || [])].sort((a, b) => cardRank(a) - cardRank(b))
+      const allCards = (cfg && cfg.cards) || []
+      const needle = query.trim().toLowerCase()
+      const cards = allCards
+        .filter((entry) => {
+          if (needle) {
+            const hay = [entry.label, entry.primary && entry.primary.match, entry.plain && entry.plain.path, entry.mvu && entry.mvu.path]
+              .filter(Boolean)
+              .join(' ')
+              .toLowerCase()
+            if (!hay.includes(needle)) return false
+          }
+          // These two are about which files are wired up, not about which cards
+          // exist: "only original" means no MVU copy is paired with it.
+          if (filter === 'plain') return !String((entry.mvu && entry.mvu.path) || '').trim()
+          if (filter === 'mvu') return !String((entry.plain && entry.plain.path) || '').trim()
+          return true
+        })
+        .sort((a, b) => {
+          if (sort === 'imported') {
+            const ka = String(a.importedAt || a.updatedAt || '')
+            const kb = String(b.importedAt || b.updatedAt || '')
+            return kb.localeCompare(ka)
+          }
+          if (sort === 'name') return String(a.label || a.id).localeCompare(String(b.label || b.id), 'zh')
+          return cardRank(a) - cardRank(b)
+        })
 
       const patch = useCallback(
         (id, key, value) =>
@@ -2347,9 +2405,50 @@ window.__ModuleLoader__.load({
               t('btn.reload'),
             ),
           ),
+          // Search and filtering sit below the view bar: they act on the card list
+          // rather than on the panel, and only a long collection needs them.
+          tab === 'cards'
+            ? h(
+                'div',
+                { className: 'dcu-tools' },
+                h('input', {
+                  className: 'dcu-input',
+                  style: { maxWidth: 280 },
+                  type: 'search',
+                  placeholder: t('tools.search'),
+                  value: query,
+                  onChange: (ev) => setQuery(ev.target.value),
+                }),
+                h('div', { className: 'dcu-bar-sep' }),
+                h(
+                  'select',
+                  { className: 'dcu-select', value: filter, onChange: (ev) => setFilter(ev.target.value) },
+                  h('option', { value: 'all' }, t('tools.all')),
+                  h('option', { value: 'plain' }, t('tools.plainOnly')),
+                  h('option', { value: 'mvu' }, t('tools.mvuOnly')),
+                ),
+                h(
+                  'select',
+                  { className: 'dcu-select', value: sort, onChange: (ev) => setSort(ev.target.value) },
+                  h('option', { value: 'auto' }, t('tools.sortAuto')),
+                  h('option', { value: 'imported' }, t('tools.sortImported')),
+                  h('option', { value: 'name' }, t('tools.sortName')),
+                ),
+                h('div', { className: 'dcu-grow' }),
+                h(
+                  'span',
+                  { className: 'dcu-sub' },
+                  t('tools.count').replace('{shown}', cards.length).replace('{total}', allCards.length),
+                ),
+              )
+            : null,
           tab === 'settings' ? h(SettingsTab, { cfg, setCfg: setDraft }) : null,
           tab === 'cards' && !cards.length
-            ? h('div', { className: 'dcu-card' }, h('div', { className: 'dcu-sub' }, t('empty')))
+            ? h(
+                'div',
+                { className: 'dcu-card' },
+                h('div', { className: 'dcu-sub' }, allCards.length ? t('tools.empty') : t('empty')),
+              )
             : null,
           tab === 'cards'
             ? cards.map((entry) =>
