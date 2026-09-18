@@ -142,6 +142,7 @@ window.__ModuleLoader__.load({
       'debug.busy': '{who}正在调试中',
       'debug.changed': '{who}调试有改动，尚未查看',
       'debug.stale': '{who}已变动，未调试',
+      'debug.locked': '有角色卡正在调试中，请等待调试结束再操作',
       'tools.search': '搜索卡名、关键词或路径…',
       'tools.all': '全部',
       'tools.plainOnly': '只有原卡',
@@ -327,6 +328,7 @@ window.__ModuleLoader__.load({
       'debug.busy': '{who} being debugged',
       'debug.changed': '{who} changed by debug, not reviewed yet',
       'debug.stale': '{who} changed since it was debugged',
+      'debug.locked': 'A card is being debugged right now; wait for it to finish',
       'tools.search': 'Search name, marker or path…',
       'tools.all': 'All',
       'tools.plainOnly': 'Original only',
@@ -2021,6 +2023,26 @@ window.__ModuleLoader__.load({
       const [query, setQuery] = useState('')
       const [filter, setFilter] = useState('all')
       const [sort, setSort] = useState('auto')
+      const [notice, setNotice] = useState('')
+
+      /**
+       * Whether the card agent is working on any card right now.
+       *
+       * Writing to a card while the agent holds it would race: the agent keeps its
+       * own copy and writes it back when it is done, so an edit made here would
+       * either be overwritten or overwrite the agent's work. Nothing that touches a
+       * card file is allowed to start while this is true.
+       */
+      const anyDebugging = Object.values((u.data && u.data.workspace && u.data.workspace.cards) || {}).some(
+        (row) => row && row.busy,
+      )
+
+      /** Refuse a card-writing action while the agent is busy, with a reason. */
+      const blockedByDebug = useCallback(() => {
+        if (!anyDebugging) return false
+        setNotice(t('debug.locked'))
+        return true
+      }, [anyDebugging])
       const [upd, setUpdate] = useState(updateMemo)
       const setUpd = useCallback((next) => {
         updateMemo = next
@@ -2164,9 +2186,18 @@ window.__ModuleLoader__.load({
           ),
         [u],
       )
-      const doUpdate = useCallback((id) => u.run('apply', { cardId: id }, t('ok.apply'), id), [u])
-      const doMerge = useCallback((id) => u.run('merge', { cardId: id }, t('ok.merge'), id), [u])
-      const doUpdateMerge = useCallback((id) => u.run('updateAndMerge', { cardId: id }, t('ok.updateMerge'), id), [u])
+      // Every card-writing action goes through the same guard: the card agent holds
+      // the card it is working on, so an edit from here would race with it.
+      const guarded = useCallback(
+        (id, action, okText) => {
+          if (blockedByDebug()) return undefined
+          return u.run(action, { cardId: id }, okText, id)
+        },
+        [blockedByDebug, u],
+      )
+      const doUpdate = useCallback((id) => guarded(id, 'apply', t('ok.apply')), [guarded])
+      const doMerge = useCallback((id) => guarded(id, 'merge', t('ok.merge')), [guarded])
+      const doUpdateMerge = useCallback((id) => guarded(id, 'updateAndMerge', t('ok.updateMerge')), [guarded])
 
       /**
        * Open the workspace's debug conversation for a card, through the play
@@ -2215,6 +2246,7 @@ window.__ModuleLoader__.load({
           // Import and plain path-picking share one browser; the difference is
           // what happens to the chosen file afterwards.
           if (req.mode === 'import') {
+            if (blockedByDebug()) return
             u.run('importPlain', { cardId: req.id, from: path }, t('ok.imported'), req.id)
             return
           }
@@ -2222,14 +2254,15 @@ window.__ModuleLoader__.load({
           // Derive a usable source: a local path becomes a copy source.
           patch(req.id, req.key === 'plain.path' ? 'plain.srcText' : 'mvu.srcText', path)
         },
-        [browse, patch, u],
+        [blockedByDebug, browse, patch, u],
       )
 
       const doManualBackup = useCallback(
         async function () {
+          if (blockedByDebug()) return
           await u.run('manualBackup', {}, t('ok.manualBackup'))
         },
-        [u],
+        [blockedByDebug, u],
       )
 
       /** Open the file browser in import mode for one card's original. */
@@ -2387,6 +2420,18 @@ window.__ModuleLoader__.load({
                 : null,
             ),
           ),
+          notice
+            ? h(
+                'div',
+                { className: 'dcu-card flat', style: { borderColor: 'var(--dsw-alias-state-warn-primary)' } },
+                h(
+                  'div',
+                  { className: 'dcu-row' },
+                  h('div', { className: 'dcu-sub dcu-grow' }, '⚠ ' + notice),
+                  h('button', { type: 'button', className: 'dcu-btn tiny ghost', onClick: () => setNotice('') }, t('btn.close')),
+                ),
+              )
+            : null,
           u.message && !u.message.cardId
             ? h(
                 'div',
@@ -2443,7 +2488,14 @@ window.__ModuleLoader__.load({
             ),
             h(
               'button',
-              { type: 'button', className: 'dcu-btn tiny ghost', disabled: u.busy, onClick: () => setRestore(true) },
+              {
+                type: 'button',
+                className: 'dcu-btn tiny ghost',
+                disabled: u.busy,
+                onClick: () => {
+                  if (!blockedByDebug()) setRestore(true)
+                },
+              },
               t('btn.restorePanel'),
             ),
             h('div', { className: 'dcu-bar-sep' }),
