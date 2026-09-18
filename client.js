@@ -140,7 +140,7 @@ window.__ModuleLoader__.load({
       'debug.failed': '打开调试失败',
       'debug.noReply': '卡片工作台没有响应，请确认 Tavern 的对话界面已打开',
       'debug.busy': '{who}正在调试中',
-      'debug.changed': '{who}调试有改动，建议查看',
+      'debug.changed': '{who}调试有改动，尚未查看',
       'tools.search': '搜索卡名、关键词或路径…',
       'tools.all': '全部',
       'tools.plainOnly': '只有原卡',
@@ -320,7 +320,7 @@ window.__ModuleLoader__.load({
       'debug.failed': 'Could not open the debug conversation',
       'debug.noReply': 'The card workspace did not answer; check that Tavern is open',
       'debug.busy': '{who} being debugged',
-      'debug.changed': '{who} changed by debug; worth reading',
+      'debug.changed': '{who} changed by debug, not reviewed yet',
       'tools.search': 'Search name, marker or path…',
       'tools.all': 'All',
       'tools.plainOnly': 'Original only',
@@ -1047,9 +1047,8 @@ window.__ModuleLoader__.load({
         if (ws && ws.busy) {
           return h('span', { className: 'dcu-chip warn dcu-dbg' }, t('debug.busy').replace('{who}', who))
         }
-        // A debug conversation wrote changes back into this file. That fact is on
-        // disk; whether anyone has read them is not, so the chip states what it
-        // knows instead of claiming a check that never happened.
+        // The card's newest debug conversation has been written to since the last
+        // time anyone opened it, so there are changes in there nobody has read.
         if (ws && ws.changed) {
           return h('span', { className: 'dcu-chip warn dcu-dbg' }, t('debug.changed').replace('{who}', who))
         }
