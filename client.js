@@ -872,7 +872,7 @@ window.__ModuleLoader__.load({
 
     /* --------------------------------------------------------- components */
 
-    function EntryCard({ entry, u, patch, onPick, onCheck, onImportNew, onMerge, onUpdateMerge, onRemove }) {
+    function EntryCard({ entry, u, patch, onPick, onCheck, onImportNew, onUpdate, onMerge, onUpdateMerge, onRemove }) {
       const st = statusOf(entry, u.data ? u.data.lastReport : null)
       const linked = !!normalizeSrc(entry.plain && entry.plain.src)
       const hasMvu = !!(entry.mvu && entry.mvu.path)
@@ -1098,6 +1098,19 @@ window.__ModuleLoader__.load({
               onClick: () => onImportNew(entry.id),
             },
             t('btn.importNew'),
+          ),
+          // Refresh the original on its own. Importing brings a file the user
+          // already downloaded; this fetches one from the configured source, and
+          // stops there instead of carrying on into the MVU copy.
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'dcu-btn tiny',
+              disabled: u.busy || !linked,
+              onClick: () => onUpdate(entry.id),
+            },
+            t('btn.update'),
           ),
           hasMvu
             ? h(
@@ -1859,6 +1872,7 @@ window.__ModuleLoader__.load({
       }, [draft, u])
 
       const doCheck = useCallback((ids) => u.run('check', { ids: ids || null }, t('ok.check')), [u])
+      const doUpdate = useCallback((id) => u.run('apply', { cardId: id }, t('ok.apply')), [u])
       const doMerge = useCallback((id) => u.run('merge', { cardId: id }, t('ok.merge')), [u])
       const doUpdateMerge = useCallback((id) => u.run('updateAndMerge', { cardId: id }, t('ok.updateMerge')), [u])
 
@@ -2124,6 +2138,7 @@ window.__ModuleLoader__.load({
                   onPick: (key) => pickFile(entry.id, key),
                   onCheck: doCheck,
                   onImportNew: pickImport,
+                  onUpdate: doUpdate,
                   onMerge: doMerge,
                   onUpdateMerge: doUpdateMerge,
                   onRemove: removeEntry,
