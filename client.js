@@ -1831,7 +1831,13 @@ window.__ModuleLoader__.load({
       // on screen until the panel was closed and reopened.
       const cfg = draft || (u.data ? u.data.config : null)
       const dirty = !!(draft && u.data && JSON.stringify(draft) !== JSON.stringify(u.data.config))
-      const cards = cfg && cfg.cards ? cfg.cards : []
+      const report = u.data ? u.data.lastReport : null
+      // Cards carrying news lead the list: a check that found an update should not
+      // leave it buried under everything that stayed put. Array.sort is stable, so
+      // cards of equal standing keep the order they were already in, and an
+      // untouched panel looks exactly as the config lists it.
+      const cardRank = (entry) => (statusOf(entry, report).kind === 'warn' ? 0 : 1)
+      const cards = [...((cfg && cfg.cards) || [])].sort((a, b) => cardRank(a) - cardRank(b))
 
       const patch = useCallback(
         (id, key, value) =>
