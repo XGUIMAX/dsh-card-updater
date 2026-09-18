@@ -141,6 +141,7 @@ window.__ModuleLoader__.load({
       'debug.noReply': '卡片工作台没有响应，请确认 Tavern 的对话界面已打开',
       'debug.busy': '{who}正在调试中',
       'debug.changed': '{who}调试有改动，尚未查看',
+      'debug.stale': '{who}已变动，未调试',
       'tools.search': '搜索卡名、关键词或路径…',
       'tools.all': '全部',
       'tools.plainOnly': '只有原卡',
@@ -325,6 +326,7 @@ window.__ModuleLoader__.load({
       'debug.noReply': 'The card workspace did not answer; check that Tavern is open',
       'debug.busy': '{who} being debugged',
       'debug.changed': '{who} changed by debug, not reviewed yet',
+      'debug.stale': '{who} changed since it was debugged',
       'tools.search': 'Search name, marker or path…',
       'tools.all': 'All',
       'tools.plainOnly': 'Original only',
@@ -803,7 +805,13 @@ window.__ModuleLoader__.load({
     function needsDebug(entry, data) {
       for (const slot of ['plain', 'mvu']) {
         const p = String((entry[slot] && entry[slot].path) || '').trim()
-        if (p && !workspaceOf(data, p)) return true
+        if (!p) continue
+        const ws = workspaceOf(data, p)
+        if (!ws) return true
+        // A record older than the file describes a card that is no longer there,
+        // which is the same situation as never having looked at it.
+        const written = Number((data && data.fileTimes && data.fileTimes[`${entry.id}:${slot}`]) || 0)
+        if (ws.debugAt && written > Date.parse(ws.debugAt)) return true
       }
       return false
     }
@@ -1041,13 +1049,15 @@ window.__ModuleLoader__.load({
       // This card's own last result, if the last thing that ran was about it.
       const note = u.message && u.message.cardId === entry.id ? u.message : null
       /**
-       * One workspace column, for a slot that actually holds a file. A slot with
-       * no conversation is the interesting one, since nothing has looked at it.
+       * One workspace column, for a slot that actually holds a file. A slot whose
+       * record is missing or out of date is the interesting one, since nothing has
+       * looked at what is on disk now.
        * @param {string} path - the slot's card path, empty when unset.
        * @param {string} who - the slot's name, for the label.
+       * @param {string} slot - `plain` or `mvu`, for the modification time.
        * @returns {object|null} the chip, or null when the slot is empty.
        */
-      const debugSlot = (path, who) => {
+      const debugSlot = (path, who, slot) => {
         if (!path) return null
         const ws = workspaceOf(u.data, path)
         // A conversation that wrote seconds ago is being worked on right now, so
@@ -1055,20 +1065,25 @@ window.__ModuleLoader__.load({
         if (ws && ws.busy) {
           return h('span', { className: 'dcu-chip warn dcu-dbg' }, t('debug.busy').replace('{who}', who))
         }
-        // The card's newest debug conversation has been written to since the last
-        // time anyone opened it, so there are changes in there nobody has read.
-        if (ws && ws.changed) {
+        // The file has been written since the record was made — another card
+        // picked, a release imported, the original updated — so the record covers
+        // a card that is no longer on disk.
+        const written = Number((u.data && u.data.fileTimes && u.data.fileTimes[`${entry.id}:${slot}`]) || 0)
+        const stale = !!(ws && ws.debugAt && written > Date.parse(ws.debugAt))
+        if (!stale && ws && ws.changed) {
           return h('span', { className: 'dcu-chip warn dcu-dbg' }, t('debug.changed').replace('{who}', who))
         }
-        const said = t('debug.done').replace('{who}', who)
-        if (ws && ws.debugAt) {
+        if (!stale && ws && ws.debugAt) {
+          const said = t('debug.done').replace('{who}', who)
           return h(
             'span',
             { className: 'dcu-chip ok dcu-dbg', title: said },
             `${said} ${new Date(ws.debugAt).toLocaleString()}`,
           )
         }
-        const todo = t('debug.todo').replace('{who}', who)
+        // Nothing has looked at this card, or what did was looking at a file that
+        // has since been replaced. Both want the same button.
+        const todo = (stale ? t('debug.stale') : t('debug.todo')).replace('{who}', who)
         // Opening the workspace's debug entry needs a play conversation to open it
         // from; without one the chip still reports, it just cannot act.
         const canOpen = !!(ws && ws.sessionId)
@@ -1135,8 +1150,8 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'dcu-debug' },
-            debugSlot(String((entry.plain && entry.plain.path) || '').trim(), t('debug.plain')),
-            debugSlot(String((entry.mvu && entry.mvu.path) || '').trim(), t('debug.mvu')),
+            debugSlot(String((entry.plain && entry.plain.path) || '').trim(), t('debug.plain'), 'plain'),
+            debugSlot(String((entry.mvu && entry.mvu.path) || '').trim(), t('debug.mvu'), 'mvu'),
           ),
           h('span', { className: chipClass(st.kind) }, st.text),
         ),
