@@ -34,7 +34,8 @@
 
 调试记录来自 Tavern 的卡片工作台对话（每张卡在 `data/chats` 下都有一个），插件只读不写。**打开调试需要这张卡有游玩对话**，没有的话按钮会灰掉并说明原因。
 
-<img width="1150" height="406" alt="jiemian" src="https://github.com/user-attachments/assets/154c1155-2297-44f5-b8d7-cef9ad6af9d4" />
+<img width="1159" height="420" alt="ScreenShot_2026-09-18_233248_236" src="https://github.com/user-attachments/assets/6069ab09-d5be-4845-9d45-12422da57105" />
+
 
 ## 搜索与排序
 
