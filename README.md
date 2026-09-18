@@ -38,6 +38,7 @@
 
 
 ## 搜索与排序
+<img width="1160" height="260" alt="image" src="https://github.com/user-attachments/assets/83e892ef-ef0b-4c45-863f-4896551d4c87" />
 
 卡片列表上方有一行工具：
 
