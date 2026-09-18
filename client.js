@@ -131,6 +131,14 @@ window.__ModuleLoader__.load({
       'ok.imported': '已导入新版卡',
       'ok.apply': '原版卡已更新',
       'ok.debugHint': '为确保卡功能与内容完善，建议调试一遍',
+      'debug.plain': '原卡',
+      'debug.mvu': 'MVU 版',
+      'debug.done': '{who}已调试',
+      'debug.todo': '{who}未调试 · 点击前去调试',
+      'debug.noPlay': '这张卡还没有游玩对话，先开一局才能调试',
+      'debug.opened': '已打开卡片 Agent 调试对话',
+      'debug.failed': '打开调试失败',
+      'debug.noReply': '卡片工作台没有响应，请确认 Tavern 的对话界面已打开',
       'ok.merge': '合并完成',
       'ok.updateMerge': '更新并合并完成',
       'ok.restore': '已从备份恢复',
@@ -292,6 +300,14 @@ window.__ModuleLoader__.load({
       'ok.imported': 'New version imported',
       'ok.apply': 'Original updated',
       'ok.debugHint': 'Worth a debug pass to confirm the card still works end to end',
+      'debug.plain': 'Original',
+      'debug.mvu': 'MVU',
+      'debug.done': '{who} debugged',
+      'debug.todo': '{who} not debugged - click to debug',
+      'debug.noPlay': 'No play conversation for this card yet; open one first',
+      'debug.opened': 'Opened the card agent debug conversation',
+      'debug.failed': 'Could not open the debug conversation',
+      'debug.noReply': 'The card workspace did not answer; check that Tavern is open',
       'ok.merge': 'Merge finished',
       'ok.updateMerge': 'Update + merge finished',
       'ok.restore': 'Restored from backup',
@@ -397,6 +413,12 @@ window.__ModuleLoader__.load({
       // The debug advice rides under the result rather than beside it, so a long
       // merge summary does not push it off the row.
       '.dcu-note-hint{display:block;margin-top:2px;opacity:.85}',
+      // One column per card slot, saying what the card agent has looked at. Capped
+      // in width so two long rows cannot squeeze the name out of the header.
+      '.dcu-debug{display:flex;align-items:center;gap:5px;flex:none;flex-wrap:wrap;justify-content:flex-end;max-width:54%}',
+      '.dcu-dbg{font-size:10px}',
+      '.dcu-dbg-open{cursor:pointer}',
+      '.dcu-dbg-open:disabled{opacity:.55;cursor:not-allowed}',
       // Label column sized to the longest label and right-aligned, so every input
       // in the card starts at the same x.
       '.dcu-slot{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center}',
@@ -717,6 +739,78 @@ window.__ModuleLoader__.load({
       return { kind: 'bad', text: (res && res.error) || t('index.bad'), renew: !!(res && res.loginUrl) }
     }
 
+    /**
+     * What the Tavern card workspace knows about one card.
+     *
+     * The host scan is keyed by file name, because that is all a conversation
+     * snapshot records, and the two slots of an entry routinely point into
+     * different folders.
+     * @param {object} data - the host half's state.
+     * @param {string} cardPath - an absolute path from the config.
+     * @returns {{debugAt: string|null, sessionId: string|null}|null} null when the
+     *   workspace holds no conversation for that card.
+     */
+    function workspaceOf(data, cardPath) {
+      const name = String(cardPath || '').split(/[\\/]/).pop()
+      const all = data && data.workspace && data.workspace.cards
+      if (!name || !all) return null
+      return all[name] || null
+    }
+
+    /**
+     * Whether either slot of an entry is a card the workspace has never opened a
+     * conversation for. A card nobody has looked at is the one most likely to be
+     * broken, so it ranks above the ones already checked.
+     * @param {object} entry - the config entry.
+     * @param {object} data - the host half's state.
+     * @returns {boolean}
+     */
+    function needsDebug(entry, data) {
+      for (const slot of ['plain', 'mvu']) {
+        const p = String((entry[slot] && entry[slot].path) || '').trim()
+        if (p && !workspaceOf(data, p)) return true
+      }
+      return false
+    }
+
+    /**
+     * Ask Tavern's card workspace to open its debug entry for a play
+     * conversation. The workspace answers this event by creating the debugging
+     * conversation; the promise is what separates "opened" from "nothing was
+     * listening", which otherwise look exactly alike from here.
+     * @param {string} sourceSessionId - the play conversation to debug from.
+     * @returns {Promise<void>}
+     */
+    function openCardDebug(sourceSessionId) {
+      return new Promise((resolve, reject) => {
+        let settled = false
+        const timer = window.setTimeout(() => {
+          if (settled) return
+          settled = true
+          reject(new Error(t('debug.noReply')))
+        }, 15000)
+        const finish = (fn, value) => {
+          if (settled) return
+          settled = true
+          window.clearTimeout(timer)
+          fn(value)
+        }
+        window.dispatchEvent(
+          new CustomEvent('dsh-tavern-debug-play-chat', {
+            detail: {
+              sourceSessionId,
+              // Tavern's own entry passes the turn it was opened at. From here the
+              // newest turn is not known, and the debug conversation can be moved
+              // to any turn once it exists.
+              turn: 0,
+              resolve: (value) => finish(resolve, value),
+              reject: (error) => finish(reject, error),
+            },
+          }),
+        )
+      })
+    }
+
     /** The hover text: version numbers and the reason a check failed live here. */
     function updateTip(upd) {
       if (upd.status === 'available') {
@@ -907,10 +1001,44 @@ window.__ModuleLoader__.load({
 
     /* --------------------------------------------------------- components */
 
-    function EntryCard({ entry, u, patch, onPick, onCheck, onImportNew, onUpdate, onMerge, onUpdateMerge, onRemove }) {
+    function EntryCard({ entry, u, patch, onPick, onCheck, onImportNew, onUpdate, onMerge, onUpdateMerge, onRemove, onDebug }) {
       const st = statusOf(entry, u.data ? u.data.lastReport : null)
       // This card's own last result, if the last thing that ran was about it.
       const note = u.message && u.message.cardId === entry.id ? u.message : null
+      /**
+       * One workspace column, for a slot that actually holds a file. A slot with
+       * no conversation is the interesting one, since nothing has looked at it.
+       * @param {string} path - the slot's card path, empty when unset.
+       * @param {string} who - the slot's name, for the label.
+       * @returns {object|null} the chip, or null when the slot is empty.
+       */
+      const debugSlot = (path, who) => {
+        if (!path) return null
+        const ws = workspaceOf(u.data, path)
+        const said = t('debug.done').replace('{who}', who)
+        if (ws && ws.debugAt) {
+          return h(
+            'span',
+            { className: 'dcu-chip ok dcu-dbg', title: said },
+            `${said} ${new Date(ws.debugAt).toLocaleString()}`,
+          )
+        }
+        const todo = t('debug.todo').replace('{who}', who)
+        // Opening the workspace's debug entry needs a play conversation to open it
+        // from; without one the chip still reports, it just cannot act.
+        const canOpen = !!(ws && ws.sessionId)
+        return h(
+          'button',
+          {
+            type: 'button',
+            className: 'dcu-chip warn dcu-dbg dcu-dbg-open',
+            disabled: !canOpen,
+            title: canOpen ? todo : t('debug.noPlay'),
+            onClick: () => onDebug(ws && ws.sessionId),
+          },
+          todo,
+        )
+      }
       const linked = !!normalizeSrc(entry.plain && entry.plain.src)
       const hasMvu = !!(entry.mvu && entry.mvu.path)
       const primaryUrl = String((entry.primary && entry.primary.url) || '').trim()
@@ -954,6 +1082,16 @@ window.__ModuleLoader__.load({
               onChange: (ev) => patch(entry.id, 'label', ev.target.value),
             }),
             h('div', { className: 'dcu-sub' }, subtitleOf(entry)),
+          ),
+          // The workspace columns sit between the name and the update state: what
+          // has been looked at, then whether it is current. A slot with no file
+          // renders nothing, so a card paired with only one of the two shows one
+          // column rather than a column saying it is missing.
+          h(
+            'div',
+            { className: 'dcu-debug' },
+            debugSlot(String((entry.plain && entry.plain.path) || '').trim(), t('debug.plain')),
+            debugSlot(String((entry.mvu && entry.mvu.path) || '').trim(), t('debug.mvu')),
           ),
           h('span', { className: chipClass(st.kind) }, st.text),
         ),
@@ -1897,7 +2035,14 @@ window.__ModuleLoader__.load({
       // leave it buried under everything that stayed put. Array.sort is stable, so
       // cards of equal standing keep the order they were already in, and an
       // untouched panel looks exactly as the config lists it.
-      const cardRank = (entry) => (statusOf(entry, report).kind === 'warn' ? 0 : 1)
+      // Ranking: cards with news first, then cards the workspace has never opened
+      // a conversation for, then everything else. A card nothing has looked at is
+      // the one most likely to be broken, so it sits above the ones already
+      // checked. Array.sort is stable, so equal cards keep the config's order.
+      const cardRank = (entry) => {
+        if (statusOf(entry, report).kind === 'warn') return 0
+        return needsDebug(entry, u.data) ? 1 : 2
+      }
       const cards = [...((cfg && cfg.cards) || [])].sort((a, b) => cardRank(a) - cardRank(b))
 
       const patch = useCallback(
@@ -1934,6 +2079,24 @@ window.__ModuleLoader__.load({
       const doUpdate = useCallback((id) => u.run('apply', { cardId: id }, t('ok.apply'), id), [u])
       const doMerge = useCallback((id) => u.run('merge', { cardId: id }, t('ok.merge'), id), [u])
       const doUpdateMerge = useCallback((id) => u.run('updateAndMerge', { cardId: id }, t('ok.updateMerge'), id), [u])
+
+      /**
+       * Open the workspace's debug conversation for a card, through the play
+       * conversation that card belongs to. Reported in the log rather than on a
+       * card row: what it opens is a conversation elsewhere, not a change here.
+       */
+      const openDebug = useCallback(
+        async (sessionId) => {
+          if (!sessionId) return
+          try {
+            await openCardDebug(sessionId)
+            u.push(t('debug.opened'), 'ok')
+          } catch (e) {
+            u.push(`${t('debug.failed')}：${e && e.message ? e.message : e}`, 'bad')
+          }
+        },
+        [u],
+      )
 
       const rescan = useCallback(async () => {
         // `suggest` writes the rescan to disk itself, so there is nothing worth
@@ -2201,6 +2364,7 @@ window.__ModuleLoader__.load({
                   onUpdate: doUpdate,
                   onMerge: doMerge,
                   onUpdateMerge: doUpdateMerge,
+                  onDebug: openDebug,
                   onRemove: removeEntry,
                 }),
               )
