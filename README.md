@@ -337,6 +337,26 @@ client.js      浏览器端：面板、设置区、侧栏入口
 - 头像缩放：Windows 走 System.Drawing，其余平台交给浏览器
 - 安装卸载：标准方式是 `dsh plugin --profile <name> add / remove`，跨平台通用；另外随附 PowerShell 与 POSIX 脚本各一套作为备选
 
+### 不要给 package.json 加 BOM
+
+DSH 读这个清单来判断一个包是不是 bundle，**一个 UTF-8 BOM 就会让清单变成非法 JSON**，插件直接加载失败，报的是：
+
+```
+dsh-plugin-desktop: cannot read profile package manifest for dsh-card-updater: Unexpected token '', ...
+```
+
+这是踩过一次的坑：Windows PowerShell 5.1 的 `Set-Content -Encoding UTF8` 会主动写 BOM，用它改版本号就会中招。改这个文件请用不带 BOM 的方式，比如仓库里用的编辑工具，或者：
+
+```powershell
+node -e "const f=require('fs'),p='package.json';f.writeFileSync(p,f.readFileSync(p,'utf8').replace(/^\uFEFF/,''),'utf8')"
+```
+
+修完可以用这句确认前三个字节不是 `EF BB BF`：
+
+```powershell
+node -e "const b=require('fs').readFileSync('package.json');console.log(b.subarray(0,3).toString('hex'))"
+```
+
 ### 发版
 
 「检测更新」比对的是本机 `package.json` 里的 `version` 与仓库的 release / tag，所以新版要能被检测到，必须打上对应的标签：
