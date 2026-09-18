@@ -130,6 +130,7 @@ window.__ModuleLoader__.load({
       'ok.removed': '已删除条目',
       'ok.imported': '已导入新版卡',
       'ok.apply': '原版卡已更新',
+      'ok.debugHint': '为确保卡功能与内容完善，建议调试一遍',
       'ok.merge': '合并完成',
       'ok.updateMerge': '更新并合并完成',
       'ok.restore': '已从备份恢复',
@@ -290,6 +291,7 @@ window.__ModuleLoader__.load({
       'ok.removed': 'Entry removed',
       'ok.imported': 'New version imported',
       'ok.apply': 'Original updated',
+      'ok.debugHint': 'Worth a debug pass to confirm the card still works end to end',
       'ok.merge': 'Merge finished',
       'ok.updateMerge': 'Update + merge finished',
       'ok.restore': 'Restored from backup',
@@ -392,6 +394,9 @@ window.__ModuleLoader__.load({
       '.dcu-note{flex:1 1 auto;min-width:0;margin-right:6px;font-size:11px;line-height:1.5;text-align:left;word-break:break-word}',
       '.dcu-note.ok{color:var(--dsw-alias-state-success-primary)}',
       '.dcu-note.bad{color:var(--dsw-alias-state-error-primary)}',
+      // The debug advice rides under the result rather than beside it, so a long
+      // merge summary does not push it off the row.
+      '.dcu-note-hint{display:block;margin-top:2px;opacity:.85}',
       // Label column sized to the longest label and right-aligned, so every input
       // in the card starts at the same x.
       '.dcu-slot{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center}',
@@ -782,6 +787,14 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /**
+     * Actions that rewrite a card file. A successful one earns a debug pass: the
+     * card will still load, but its status bar, variable scripts or a regex that
+     * depended on the old wording can be off, and that only surfaces once the card
+     * is actually played.
+     */
+    const WRITES_CARD = new Set(['apply', 'merge', 'updateAndMerge', 'importPlain'])
+
     function summarize(res) {
       const r = res && res.result
       if (!r) return ''
@@ -865,7 +878,14 @@ window.__ModuleLoader__.load({
               setMessage({ kind: 'bad', text, cardId: at })
               push(`${okText || action} 失败：${res.error || 'failed'}`, 'bad')
             } else {
-              if (okText) setMessage({ kind: 'ok', text: okText + summarize(res), cardId: at })
+              if (okText) {
+                setMessage({
+                  kind: 'ok',
+                  text: okText + summarize(res),
+                  cardId: at,
+                  hint: WRITES_CARD.has(action) ? t('ok.debugHint') : '',
+                })
+              }
               push((okText || action) + summarize(res), 'ok')
             }
             await load()
@@ -1080,6 +1100,7 @@ window.__ModuleLoader__.load({
                 'div',
                 { className: 'dcu-note ' + (note.kind === 'bad' ? 'bad' : 'ok') },
                 (note.kind === 'bad' ? '⚠ ' : '✓ ') + note.text,
+                note.hint ? h('span', { className: 'dcu-note-hint' }, note.hint) : null,
               )
             : null,
           h(
@@ -2090,6 +2111,7 @@ window.__ModuleLoader__.load({
                 'div',
                 { className: 'dcu-card flat' },
                 h('div', { className: 'dcu-sub' }, (u.message.kind === 'bad' ? '⚠ ' : '✓ ') + u.message.text),
+                u.message.hint ? h('div', { className: 'dcu-sub' }, u.message.hint) : null,
               )
             : null,
           // One bar groups the views with the controls that act on the current
