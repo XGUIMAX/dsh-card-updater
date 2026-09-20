@@ -53,9 +53,9 @@ DSH 兼容范围声明在 `package.json` 的 `dsh.compatibility` 里。`dshRelea
 
 **打开文件夹**：用户点击「打开目录」时，调用系统自带的文件管理器（Windows 的 `explorer.exe`、macOS 的 `open`、Linux 的 `xdg-open`）打开一个已存在的目录。参数以数组形式传入，不经过 shell，所以路径里的空格、引号、`&` 都不会被解释。它是纯启动器，不读它的输出，也没有其他命令。
 
-**头像缩放**：仅 Windows，调用 PowerShell 与 System.Drawing 把卡片 PNG 缩到 96px。其他平台不执行任何命令，直接把原图交给浏览器缩放。这段命令里唯一的外部输入是文件路径，路径中的单引号会被转义。
+**这是唯一一处。** 早期版本在 Windows 上还会调用 PowerShell 与 System.Drawing 生成 96px 头像缩略图。那个调用需要 `-ExecutionPolicy Bypass` 和运行时拼接的命令串，被终端防护读成了脚本启动器（火绒报 `TrojanDownloader/JS.Agent.is`）。缩略图只是省一点带宽，而样式表里的 `object-fit: cover` 本来就会缩放，所以那段代码已经删除：头像现在直接返回原图，由浏览器缩放。这也是当前版本里 `execFile` 只剩一次调用的原因。
 
-除这两处之外，宿主端不执行任何外部程序。
+除上述之外，宿主端不执行任何外部程序。
 
 ## 凭据
 

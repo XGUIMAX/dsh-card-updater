@@ -133,7 +133,7 @@ $env:DSH_HOME = "$env:USERPROFILE\.dsh-tavern"; & "$env:USERPROFILE\.dsh-tavern\
 dsh plugin --profile tavern remove dsh-card-updater
 ```
 
-重启 DSH 后入口消失。配置、备份与头像缓存留在 `~/.dsh/profile-data/tavern/data/tools/card-updater`，要一并清掉就手动删该目录。
+重启 DSH 后入口消失。配置与备份留在 `~/.dsh/profile-data/tavern/data/tools/card-updater`，要一并清掉就手动删该目录。
 
 ### 更新
 
@@ -282,7 +282,7 @@ localStorage.getItem("auth_token")
 | `profile-data/<profile>/data/tools/card-updater/config.json` | 卡片配对、链接、基线签名、策略开关、索引站令牌 |
 | `profile-data/<profile>/data/tools/card-updater/state.json` | 最近一次检测报告 |
 | `profile-data/<profile>/data/tools/card-updater/backups/` | 每次写入前的自动备份 |
-| `profile-data/<profile>/data/tools/card-updater/avatar-cache/` | 卡片头像缩略图缓存 |
+| `profile-data/<profile>/data/tools/card-updater/` | 配置、检测报告与备份 |
 
 卡片目录固定为 `profile-data/<profile>/data/resources/cards`。
 
@@ -318,11 +318,15 @@ localStorage.getItem("auth_token")
 
 **「检测更新」显示暂无发布版本**：仓库还没打过任何版本标签，插件无法比对。见下面的「发版」。
 
+**安全软件报 `TrojanDownloader/JS.Agent.is`**：误报，两个原因叠在一起。插件本职要下载卡文件并写入磁盘，这本身就有"下载者"的形状；而 1.17.0 之前，它在 Windows 上还会调用 PowerShell 生成头像缩略图，那次调用带了 `-ExecutionPolicy Bypass` 和运行时拼接的命令串，正是终端防护判定"脚本启动器"的特征。1.18.0 已经把那段调用删掉了，头像直接交给浏览器缩放，现在整个宿主端只剩一处外部命令调用（打开系统文件管理器）。
+
+报毒时把插件目录加入信任区即可。它需要写人物卡文件，这是它的功能本身，不是异常。
+
 **点「更新原版」或「更新并合并」提示来源无法直接更新**：这张卡的来源挂着密码、权限或赞助，插件拿不到文件。点「跳转到原贴」去按作者的方式下载新卡，回来点「导入新版」，再点「合并到 MVU」。检测结果里标着「有下载条件：密码 · 权限 · 回复可见」的卡都属于这种情况。
 
 **提示令牌已过期**：索引站的令牌有效期约 7 天，过期后检索贴子会返回 401。刷新方式见上面「索引站授权」一节：**先退出登录**，再用 Discord 重新登录一次，然后重新取。注意浏览器里看着还登录着是正常的，登录态靠 cookie，令牌是另一条凭据，两者不会互相刷新。
 
-**macOS / Linux 上和 Windows 有什么不一样**：功能完全一致，只有两处跟随平台。一是「打开目录」交给系统自己的文件管理器，macOS 用 `open`，Linux 用 `xdg-open`。二是卡片头像：Windows 上用 System.Drawing 把图缩到 96px 再发给浏览器，其他平台直接把原图发出去由浏览器缩放，第一次打开会多传一点数据，之后走浏览器缓存。
+**macOS / Linux 上和 Windows 有什么不一样**：只剩一处。打开目录交给系统自己的文件管理器，macOS 用 `open`，Linux 用 `xdg-open`，Windows 用 `explorer.exe`。插件不执行任何其他外部程序。
 
 ## 开发
 
@@ -337,7 +341,7 @@ client.js      浏览器端：面板、设置区、侧栏入口
 
 - `GET  /dsh-card-updater/state` — 配置与最近报告
 - `GET  /dsh-card-updater/list` — 目录浏览
-- `GET  /dsh-card-updater/avatar` — 卡片头像缩略图
+- `GET  /dsh-card-updater/avatar` — 卡片头像
 - `POST /dsh-card-updater/action` — 所有操作，取值为 `check` / `importPlain` / `merge` / `updateAndMerge` / `save` / `suggest` / `backupList` / `restoreBackup` / `deleteBackup` / `manualBackup` / `prune` / `verifyIndex` / `openFolder` / `checkUpdate` / `selfcheck` 等
 
 改了 `lib/index.js` 需要重启 DSH；只改 `client.js` 刷新页面即可。
@@ -347,7 +351,6 @@ client.js      浏览器端：面板、设置区、侧栏入口
 宿主端只用 Node 内置模块，没有第三方依赖，路径一律走 `node:path`。DSH 主目录取 `DSH_HOME`，没设时用 `~/.dsh`，三个平台解析到同一个位置。需要跟随平台的地方各有分支：
 
 - 打开文件夹：`explorer.exe` / `open` / `xdg-open`
-- 头像缩放：Windows 走 System.Drawing，其余平台交给浏览器
 - 安装卸载：标准方式是 `dsh plugin --profile <name> add / remove`，跨平台通用；另外随附 PowerShell 与 POSIX 脚本各一套作为备选
 
 ### 不要给 package.json 加 BOM
