@@ -201,13 +201,19 @@ window.__ModuleLoader__.load({
       'upd.checking': '检测中…',
       'upd.latest': '已是最新版',
       'upd.available': '发现新版 {v}',
+      'upd.updating': '更新中…',
+      'upd.updated': '已更新到 {v}',
+      'upd.uptodate': '已是最新',
       'upd.failed': '检测失败',
       'upd.nodata': '暂无发布版本',
       'upd.tip.idle': '检测 GitHub 上是否发布了新版本',
       'upd.tip.latest': '当前 {current}，已是最新版',
-      'upd.tip.available': '当前 {current}，GitHub 上最新 {latest}；点击前往更新',
+      'upd.tip.available': '当前 {current}，GitHub 上最新 {latest}；点击直接更新',
+      'upd.tip.updating': '正在从 GitHub 拉取最新代码…',
+      'upd.tip.updated': '已更新 {before} → {after}；重启 DSH 后生效',
+      'upd.tip.uptodate': '仓库没有新提交（仍停在 {before}）',
       'upd.tip.failed': '检测失败：{error}',
-      'upd.tip.nodata': '仓库还没有发布版本标签，无法比对；点击前往 GitHub',
+      'upd.tip.nodata': '仓库还没有发布版本标签，无法比对；点击直接更新到默认分支',
       'upd.version': '当前安装版本 {v}',
     }
     const en = {
@@ -394,13 +400,19 @@ window.__ModuleLoader__.load({
       'upd.checking': 'Checking…',
       'upd.latest': 'Up to date',
       'upd.available': 'Update {v}',
+      'upd.updating': 'Updating…',
+      'upd.updated': 'Updated to {v}',
+      'upd.uptodate': 'Up to date',
       'upd.failed': 'Check failed',
       'upd.nodata': 'No release yet',
       'upd.tip.idle': 'Check GitHub for a newer release',
       'upd.tip.latest': '{current} is the latest release',
-      'upd.tip.available': 'Installed {current}, latest {latest} on GitHub; click to open',
+      'upd.tip.available': 'Installed {current}, latest {latest} on GitHub; click to update',
+      'upd.tip.updating': 'Pulling the latest code from GitHub…',
+      'upd.tip.updated': 'Updated {before} → {after}; restart DSH to apply',
+      'upd.tip.uptodate': 'No new commits (still at {before})',
       'upd.tip.failed': 'Check failed: {error}',
-      'upd.tip.nodata': 'The repository publishes no version yet; click to open GitHub',
+      'upd.tip.nodata': 'The repository publishes no version yet; click to update from the default branch',
       'upd.version': 'Installed version {v}',
     }
 
@@ -727,6 +739,8 @@ window.__ModuleLoader__.load({
     /** The label on the panel's own update button, which doubles as its verdict. */
     function updateLabel(upd) {
       if (upd.status === 'busy') return t('upd.checking')
+      if (upd.status === 'updating') return t('upd.updating')
+      if (upd.status === 'updated') return upd.changed ? t('upd.updated').replace('{v}', withV(upd.current)) : t('upd.uptodate')
       if (upd.status === 'available') return t('upd.available').replace('{v}', withV(upd.latest))
       if (upd.status === 'latest') return t('upd.latest')
       if (upd.status === 'failed') return t('upd.failed')
@@ -880,6 +894,11 @@ window.__ModuleLoader__.load({
 
     /** The hover text: version numbers and the reason a check failed live here. */
     function updateTip(upd) {
+      if (upd.status === 'updating') return t('upd.tip.updating')
+      if (upd.status === 'updated') {
+        const key = upd.changed ? 'upd.tip.updated' : 'upd.tip.uptodate'
+        return t(key).replace('{before}', upd.before || '').replace('{after}', upd.after || '')
+      }
       if (upd.status === 'available') {
         return t('upd.tip.available').replace('{current}', withV(upd.current)).replace('{latest}', withV(upd.latest))
       }
@@ -2098,6 +2117,10 @@ window.__ModuleLoader__.load({
         updateMemo = next
         setUpdate(next)
       }, [])
+      // Separate from `upd.status`, because the pull is a long request and the
+      // button needs to be out of reach while it runs without losing the verdict
+      // it is replacing.
+      const [updating, setUpdating] = useState(false)
 
       /**
        * Ask the host half which version GitHub is publishing. Automatic runs ride
@@ -2138,12 +2161,29 @@ window.__ModuleLoader__.load({
         checkUpdate(false)
       }, [checkUpdate])
 
-      const onUpdateClick = useCallback(() => {
-        // A verdict that names a newer version, or a repository with nothing to
-        // compare against, both end in the same place: the page where the update
-        // actually lives.
+      const onUpdateClick = useCallback(async () => {
         if (upd.status === 'available' || upd.status === 'nodata') {
-          openExternal(upd.url || REPO_URL)
+          // The plugin knows where its own source lives and how to fetch it, so
+          // handing the user a web page to do it by hand is the answer that helps
+          // least — they came here to have it done. It updates itself and reports
+          // what actually moved.
+          setUpdating(true)
+          setUpd({ status: 'updating', current: upd.current })
+          try {
+            const res = await apiPost({ action: 'selfUpdate' }, 180000)
+            if (!res || res.ok === false) throw new Error((res && res.error) || 'failed')
+            setUpd({
+              status: 'updated',
+              current: res.version || upd.current,
+              before: res.before,
+              after: res.after,
+              changed: !!res.changed,
+            })
+          } catch (e) {
+            setUpd({ status: 'failed', error: String(e && e.message ? e.message : e), current: upd.current })
+          } finally {
+            setUpdating(false)
+          }
           return
         }
         // A press is an explicit request for a fresh answer, so it skips the cache
@@ -2464,12 +2504,12 @@ window.__ModuleLoader__.load({
                     'dcu-btn' +
                     (upd.status === 'available'
                       ? ' primary'
-                      : upd.status === 'latest'
+                      : upd.status === 'latest' || upd.status === 'updated'
                         ? ' ok'
                         : upd.status === 'failed'
                           ? ' bad'
                           : ''),
-                  disabled: upd.status === 'busy',
+                  disabled: upd.status === 'busy' || updating,
                   title: updateTip(upd),
                   onClick: onUpdateClick,
                 },
