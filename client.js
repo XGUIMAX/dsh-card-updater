@@ -87,6 +87,9 @@ window.__ModuleLoader__.load({
       'primary.discordNeedToken': '这是 Discord 贴子链接，请在「合并设置」里填入索引站令牌',
       'primary.title': '来源检索',
       'primary.newer': '作者已发布新版',
+      'primary.newerUnstated': '作者发布了新更新，贴子没写版本号',
+      'primary.postedAt': '贴子更新于 {at}',
+      'primary.renamed': '贴子已改名：{from} → {to}',
       'primary.current': '未发现比本地更新的版本',
       'primary.gated': '有下载条件',
       'primary.error': '检索失败',
@@ -273,6 +276,9 @@ window.__ModuleLoader__.load({
       'primary.discordNeedToken': 'Discord thread link: add an index token under Settings',
       'primary.title': 'Release watch',
       'primary.newer': 'New version published',
+      'primary.newerUnstated': 'Author posted an update; the thread states no version',
+      'primary.postedAt': 'Thread updated {at}',
+      'primary.renamed': 'Thread renamed: {from} → {to}',
       'primary.current': 'Nothing newer than the local card',
       'primary.gated': 'Download conditions',
       'primary.error': 'watch failed',
@@ -890,7 +896,16 @@ window.__ModuleLoader__.load({
         // setting, so a browser can open Discord while this cannot.
         if (state.networkError) bits.push({ kind: 'info', text: t('primary.tunHint') })
       } else if (state.newer) {
-        bits.push({ kind: 'warn', text: t('primary.newer') + (state.version ? ` V${state.version}` : '') })
+        // A number the index tracks is a version and can be printed as one. A
+        // number scraped from a heading is usually the posting date, and printing
+        // that as "V9.21" told the reader the card had a version it does not have.
+        const isVersion = state.versionKind !== 'date'
+        bits.push({
+          kind: 'warn',
+          text: isVersion
+            ? t('primary.newer') + (state.version ? ` V${state.version}` : '')
+            : t('primary.newerUnstated'),
+        })
       } else if (state.changed) {
         // Some authors ship a new file under an unchanged headline, so a page or
         // thread that moved without a recognisable version marker is still news.
@@ -898,13 +913,30 @@ window.__ModuleLoader__.load({
       } else if (state.sig) {
         bits.push({
           kind: 'ok',
-          text: t('primary.current') + (state.version ? `（页面 V${state.version}）` : ''),
+          text:
+            t('primary.current') +
+            (state.version
+              ? state.versionKind === 'date'
+                ? `（${t('primary.postedAt').replace('{at}', state.version)}）`
+                : `（页面 V${state.version}）`
+              : ''),
         })
       }
       if (state.gates && state.gates.length) {
         bits.push({
           kind: 'info',
           text: t('primary.gated') + '：' + state.gates.map((g) => t('gate.' + g)).join(' · '),
+        })
+      }
+      if (state.renamedFrom && state.title) {
+        // Said plainly, because a renamed thread is still the card people already
+        // have: someone searching for the old name would conclude it had gone.
+        // Both names are cut short — thread titles run to a hundred characters of
+        // tags and emoji, and the point is that they differ, not what they say.
+        const brief = (s) => (String(s).length > 24 ? String(s).slice(0, 24) + '…' : String(s))
+        bits.push({
+          kind: 'info',
+          text: t('primary.renamed').replace('{from}', brief(state.renamedFrom)).replace('{to}', brief(state.title)),
         })
       }
       if (state.discoveredAt) {
