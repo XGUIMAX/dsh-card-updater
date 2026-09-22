@@ -41,6 +41,35 @@ window.__ModuleLoader__.load({
       'backup.note':
         '每次写入前自动备份，每个文件保留最近 {perFile} 份、全部上限 {total} 份，超出自动清理；想立刻清掉旧的就打开目录手动删。',
       'backup.open': '打开备份目录',
+      'merge.fields': '更新了 {what}',
+      'merge.fieldSep': '、',
+      'merge.bookAdded': '世界书新增了 {n} 条',
+      'merge.bookFilled': '世界书补全了 {n} 条',
+      'merge.bookKept': '保留了 MVU 版原有的 {n} 条没有被覆盖',
+      'merge.bookAdopted': '补上了原先没有的世界书',
+      'merge.regexAdded': '新增了 {n} 条正则脚本',
+      'merge.extAdded': '补上了 {what}',
+      'err.openFolder': '打不开这个目录',
+      'err.noBackupDir': '后台没有给出备份目录路径',
+      'merge.version': '卡版本号升到 {v}',
+      'field.name': '角色名',
+      'field.description': '角色描述',
+      'field.personality': '性格',
+      'field.scenario': '场景',
+      'field.first_mes': '开场白',
+      'field.mes_example': '对话示例',
+      'field.system_prompt': '系统提示词',
+      'field.post_history_instructions': '附加指令',
+      'field.creator_notes': '作者注释',
+      'field.creator': '作者',
+      'field.character_version': '卡版本号',
+      'field.tags': '标签',
+      'field.alternate_greetings': '备选开场白',
+      'ext.talkativeness': '话痨程度',
+      'ext.fav': '收藏状态',
+      'ext.world': '外挂世界书',
+      'ext.depth_prompt': '深度提示',
+      'ext.xiaobaix-template': '小白模板',
       'ok.manualBackup': '已手动备份全部卡片',
       'btn.close': '关闭',
       'btn.reload': '重新载入',
@@ -57,9 +86,9 @@ window.__ModuleLoader__.load({
       'strategy.full.d': '再把只在原版存在的正则脚本补进 MVU 版；同名脚本原样保留。',
       'strategy.detail': '详细',
       'strategy.more': '收起',
-      'strategy.minimal.long': '范围：name / description / personality / scenario / first_mes / mes_example / system_prompt / post_history_instructions / creator_notes / creator / tags / alternate_greetings 共 12 个正文字段。\n动作：逐字段比对原版卡与 MVU 版，不同就采用原版的值；世界书（character_book）与正则脚本（regex_scripts）一律不动。\n适用：作者只改了人设设定、场景描述或新增开场白（alternate_greetings）。\n结果：合并记录会逐项列出被改写的字段名，例如「name、first_mes、alternate_greetings」。',
-      'strategy.standard.long': '范围：第一档全部字段，外加内嵌世界书 character_book。\n动作：按条目合并而非整本替换 —— ①原版有、MVU 版没有的条目直接写入；②两边都有且内容与关键词一致则跳过；③MVU 版该条目内容为空则用原版补上；④两边都有但内容不同则保留 MVU 版，并计入「保留 N」报告。\n适用：日常跟随作者更新世界观词条，同时不改动你本地调整过的条目。\n结果：合并记录显示「character_book(+新增 / ~更新 / 保留N)」，被保留的条目名会列在备份弹窗与条目提示里。',
-      'strategy.full.long': '范围：第一、二档的全部内容，外加正则脚本 regex_scripts。\n动作：按 scriptName 去重 —— 只把「仅存在于原版」的脚本追加到 MVU 版；MVU 版已有的同名脚本原样保留，不会被覆盖。\n风险：原版脚本常含旧式状态栏或变量渲染规则，与 MVU 版的状态栏脚本可能相互干扰，导致状态栏显示异常。\n适用：作者发布了你确实需要、且 MVU 版没有的新正则功能时临时选用，合并完成后建议切回「内容字段 + 世界书」。\n结果：合并记录显示「regex_scripts(+N)」，可与 MVU 版原有脚本数量核对。',
+      'strategy.minimal.long': '范围：name / description / personality / scenario / first_mes / mes_example / system_prompt / post_history_instructions / creator_notes / creator / tags / alternate_greetings 共 12 个正文字段。\n动作：逐字段比对原版卡与 MVU 版，不同就采用原版的值；世界书（character_book）与正则脚本（regex_scripts）一律不动。\n适用：作者只改了人设设定、场景描述或新增开场白（alternate_greetings）。\n结果：合并记录会把被改写的字段名写成中文，例如「更新了 角色名、开场白、备选开场白」。',
+      'strategy.standard.long': '范围：第一档全部字段，外加内嵌世界书 character_book。\n动作：按条目合并而非整本替换 —— ①原版有、MVU 版没有的条目直接写入；②两边都有且内容与关键词一致则跳过；③MVU 版该条目内容为空则用原版补上；④两边都有但内容不同则保留 MVU 版，并计入「保留 N」报告。\n适用：日常跟随作者更新世界观词条，同时不改动你本地调整过的条目。\n结果：合并记录用中文写清这次做了什么，例如「世界书新增了 3 条」「保留了 MVU 版原有的 12 条没有被覆盖」，被保留的条目名会列在备份弹窗与条目提示里。',
+      'strategy.full.long': '范围：第一、二档的全部内容，外加正则脚本 regex_scripts。\n动作：按 scriptName 去重 —— 只把「仅存在于原版」的脚本追加到 MVU 版；MVU 版已有的同名脚本原样保留，不会被覆盖。\n风险：原版脚本常含旧式状态栏或变量渲染规则，与 MVU 版的状态栏脚本可能相互干扰，导致状态栏显示异常。\n适用：作者发布了你确实需要、且 MVU 版没有的新正则功能时临时选用，合并完成后建议切回「内容字段 + 世界书」。\n结果：合并记录会写「新增了 N 条正则脚本」，可与 MVU 版原有脚本数量核对。',
       'strategy.advice': '选择建议：日常跟随作者更新用「内容字段 + 世界书」；只改了人设文案、不想动世界书时用「内容字段」；作者新增了你需要的正则功能时临时切到第三档，合并后切回第二档。',
       'flag.syncPlain': '合并结果写回原版卡',
       'flag.syncPlain.d': '让原版卡也带上 MVU 状态栏，新档可直接用原版卡开。',
@@ -116,7 +145,7 @@ window.__ModuleLoader__.load({
       'note.soloMvu': '独立 MVU 卡（未配对原版，本工具只读不写）',
       'label.imported': '已导入新版卡',
       'label.updated': '更新',
-      'label.merged': '合并',
+      'label.merged': '合并于',
       'state.dirty': '有更新',
       'state.clean': '已最新',
       'state.unknown': '未检测',
@@ -241,6 +270,35 @@ window.__ModuleLoader__.load({
       'backup.note':
         'A snapshot is taken before every write: the newest {perFile} per card are kept, {total} in total, and older ones are pruned. To clear them sooner, open the folder and delete them.',
       'backup.open': 'open backup folder',
+      'merge.fields': 'Updated {what}',
+      'merge.fieldSep': ', ',
+      'merge.bookAdded': 'Added {n} world book entries',
+      'merge.bookFilled': 'Filled in {n} world book entries',
+      'merge.bookKept': 'Kept the {n} entries that were already in the MVU copy',
+      'merge.bookAdopted': 'Added the missing world book',
+      'merge.regexAdded': 'Added {n} regex scripts',
+      'merge.extAdded': 'Added {what}',
+      'err.openFolder': 'Could not open that folder',
+      'err.noBackupDir': 'The host reported no backup folder',
+      'merge.version': 'Card version bumped to {v}',
+      'field.name': 'name',
+      'field.description': 'description',
+      'field.personality': 'personality',
+      'field.scenario': 'scenario',
+      'field.first_mes': 'first message',
+      'field.mes_example': 'example messages',
+      'field.system_prompt': 'system prompt',
+      'field.post_history_instructions': 'post-history instructions',
+      'field.creator_notes': 'creator notes',
+      'field.creator': 'creator',
+      'field.character_version': 'card version',
+      'field.tags': 'tags',
+      'field.alternate_greetings': 'alternate greetings',
+      'ext.talkativeness': 'talkativeness',
+      'ext.fav': 'favourite',
+      'ext.world': 'linked world book',
+      'ext.depth_prompt': 'depth prompt',
+      'ext.xiaobaix-template': 'xiaobaix template',
       'ok.manualBackup': 'All cards backed up manually',
       'btn.close': 'Close',
       'btn.reload': 'Reload',
@@ -317,7 +375,7 @@ window.__ModuleLoader__.load({
       'note.soloMvu': 'Standalone MVU card (no original paired; read-only here)',
       'label.imported': 'New version imported',
       'label.updated': 'Updated',
-      'label.merged': 'Merged',
+      'label.merged': 'Merged at',
       'state.dirty': 'update found',
       'state.clean': 'up to date',
       'state.unknown': 'not checked',
@@ -586,6 +644,18 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /**
+     * Ask the host to reveal a folder in the system file manager. `apiPost`
+     * only rejects on transport failures, and the host reports a refusal in the
+     * body of a 200, so the body has to be read here or the click fails without
+     * a word — which is exactly how "open backup folder" behaved.
+     */
+    async function revealFolder(target) {
+      const res = await apiPost({ action: 'openFolder', path: target })
+      if (res && res.ok === false) throw new Error(res.error || t('err.openFolder'))
+      return res
+    }
+
     function normalizeSrc(src) {
       if (!src) return null
       if (typeof src === 'string') return src || null
@@ -668,8 +738,102 @@ window.__ModuleLoader__.load({
         bits.push(t('note.soloMvu'))
       }
       if (entry.updatedAt) bits.push(`${t('label.updated')} ${new Date(entry.updatedAt).toLocaleString()}`)
-      if (entry.mergedAt) bits.push(`${t('label.merged')} ${new Date(entry.mergedAt).toLocaleString()}`)
+      // The merge time gets its own line below instead of joining this one: at
+      // the end of the subtitle it wrapped mid-timestamp and left a second row
+      // reading "26/9/22 13:30:35".
       return bits.join(' · ')
+    }
+
+    /**
+     * Card fields under the name the reader's own language gives them. A log
+     * saying `post_history_instructions` is accurate and tells nobody anything.
+     * A field this build has no name for keeps its raw one, so an unknown key
+     * shows up as itself rather than as a stray dictionary key.
+     */
+    function fieldName(field) {
+      const key = `field.${field}`
+      const label = t(key)
+      return !label || label === key ? field : label
+    }
+
+    function extName(name) {
+      const key = `ext.${name}`
+      const label = t(key)
+      return !label || label === key ? name : label
+    }
+
+    /** Every field the log can name, for recognising a pre-tag entry. */
+    const LOG_FIELDS = new Set([
+      'name',
+      'description',
+      'personality',
+      'scenario',
+      'first_mes',
+      'mes_example',
+      'system_prompt',
+      'post_history_instructions',
+      'creator_notes',
+      'creator',
+      'character_version',
+      'tags',
+      'alternate_greetings',
+    ])
+
+    function mergeText(item) {
+      const text = String(item || '').trim()
+      if (!text) return ''
+      let m = text.match(/^fields:(.+)$/)
+      if (m) {
+        const names = m[1].split(',').map((f) => fieldName(f))
+        return t('merge.fields').replace('{what}', names.join(t('merge.fieldSep')))
+      }
+      m = text.match(/^book:\+(\d+)$/)
+      if (m) return t('merge.bookAdded').replace('{n}', m[1])
+      m = text.match(/^book:~(\d+)$/)
+      if (m) return t('merge.bookFilled').replace('{n}', m[1])
+      m = text.match(/^book:kept:(\d+)$/)
+      if (m) return t('merge.bookKept').replace('{n}', m[1])
+      if (text === 'book:adopted') return t('merge.bookAdopted')
+      m = text.match(/^regex:\+(\d+)$/)
+      if (m) return t('merge.regexAdded').replace('{n}', m[1])
+      m = text.match(/^ext:(.+)$/)
+      if (m) return t('merge.extAdded').replace('{what}', extName(m[1]))
+      m = text.match(/^version:(.+)$/)
+      if (m) return t('merge.version').replace('{v}', m[1])
+      // Configs saved before the log became tagged still hold these shapes, and
+      // `character_book(+3)` is not something to hand a reader.
+      m = text.match(/^character_book\(\+(\d+)\)$/)
+      if (m) return t('merge.bookAdded').replace('{n}', m[1])
+      m = text.match(/^character_book\(~(\d+)\)$/)
+      if (m) return t('merge.bookFilled').replace('{n}', m[1])
+      m = text.match(/^character_book\(保留(\d+)\)$/)
+      if (m) return t('merge.bookKept').replace('{n}', m[1])
+      if (text === 'character_book') return t('merge.bookAdopted')
+      m = text.match(/^regex_scripts\(\+(\d+)\)$/)
+      if (m) return t('merge.regexAdded').replace('{n}', m[1])
+      m = text.match(/^extensions\.(.+)$/)
+      if (m) return t('merge.extAdded').replace('{what}', extName(m[1]))
+      return LOG_FIELDS.has(text) ? fieldName(text) : text
+    }
+
+    /**
+     * What the last merge did, on a line of its own. Older entries stored bare
+     * field names one per item, so those are gathered back into one sentence
+     * before the finished ones are laid out in order.
+     */
+    function mergeLine(entry) {
+      const raw = Array.isArray(entry.lastMergeChanged) ? entry.lastMergeChanged.map(String) : []
+      const fields = raw.filter((item) => LOG_FIELDS.has(item)).map((item) => fieldName(item))
+      const parts = []
+      if (entry.mergedAt) parts.push(`${t('label.merged')} ${new Date(entry.mergedAt).toLocaleString()}`)
+      if (fields.length) parts.push(t('merge.fields').replace('{what}', fields.join(t('merge.fieldSep'))))
+      for (const item of raw) {
+        if (LOG_FIELDS.has(item)) continue
+        const text = mergeText(item)
+        if (text) parts.push(text)
+      }
+      if (!parts.length) return null
+      return h('div', { className: 'dcu-sub' }, parts.join(' · '))
     }
 
     function statusOf(entry, report) {
@@ -1365,9 +1529,7 @@ window.__ModuleLoader__.load({
         ),
         primaryHint(entry),
         entry.lastError ? h('div', { className: 'dcu-sub' }, '⚠ ' + entry.lastError) : null,
-        entry.lastMergeChanged && entry.lastMergeChanged.length
-          ? h('div', { className: 'dcu-sub' }, `${t('label.merged')}: ${entry.lastMergeChanged.join('、')}`)
-          : null,
+        mergeLine(entry),
         // What can be done to the card, gathered in one row and pushed right, so
         // the buttons land in the same place on every card instead of wrapping
         // wherever the title happens to end.
@@ -1777,7 +1939,7 @@ window.__ModuleLoader__.load({
         if (!target) return
         setOpening(true)
         try {
-          await apiPost({ action: 'openFolder', path: target })
+          await revealFolder(target)
           setError('')
         } catch (e) {
           setError(String(e && e.message ? e.message : e))
@@ -2367,9 +2529,11 @@ window.__ModuleLoader__.load({
        */
       const openBackups = useCallback(async () => {
         const dir = u.data && u.data.backupDir
-        if (!dir) return
+        // Saying so beats returning quietly: a click that does nothing at all
+        // reads as a broken button.
+        if (!dir) return setError(t('err.noBackupDir'))
         try {
-          await apiPost({ action: 'openFolder', path: dir })
+          await revealFolder(dir)
           setError(null)
         } catch (e) {
           setError(String(e && e.message ? e.message : e))
