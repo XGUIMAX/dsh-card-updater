@@ -36,8 +36,6 @@ window.__ModuleLoader__.load({
       'btn.backups': '备份与还原',
       'btn.pickFile': '选择',
       'btn.manualBackup': '手动备份',
-      'btn.unifyNames': '统一卡名',
-      'ok.unifyNames': '卡名已统一',
       'btn.restorePanel': '还原',
       'backup.note':
         '每次写入前自动备份，每个文件保留最近 {perFile} 份、全部上限 {total} 份，超出自动清理；想立刻清掉旧的就打开目录手动删。',
@@ -101,6 +99,7 @@ window.__ModuleLoader__.load({
       'merge.bookFromOriginal': '世界书更新了 {n} 条（改用作者新版的内容）',
       'merge.bookHeld': '保留了 MVU 版自己的 {n} 条变量规则，没有换成作者版（两套变量协议不通用，换过去结算会失效）',
       'merge.bookParked': '作者版的 {n} 条变量协议条目已收进卡里但保持停用，只作参考；要把它里面的内容规则并进 MVU 规则，需要在卡片工作台里逐项做',
+      'merge.bookDup': '世界书里有 {n} 组条目标题重复，同一段设定会注入两次，建议在卡片工作台里合并掉',
       'flag.autoBump': '自动递增 character_version',
       'flag.autoBump.d': '例如 V4.3.3 → V4.3.4；已是 MVU 版本号则追加 -mvu-N。',
       'label.file': '原版卡',
@@ -273,8 +272,6 @@ window.__ModuleLoader__.load({
       'btn.backups': 'Backups',
       'btn.pickFile': 'Pick',
       'btn.manualBackup': 'Backup now',
-      'btn.unifyNames': 'Unify names',
-      'ok.unifyNames': 'Names unified',
       'btn.restorePanel': 'Restore',
       'backup.note':
         'A snapshot is taken before every write: the newest {perFile} per card are kept, {total} in total, and older ones are pruned. To clear them sooner, open the folder and delete them.',
@@ -338,6 +335,7 @@ window.__ModuleLoader__.load({
       'merge.bookFromOriginal': "{n} world book entries took the author's newer text",
       'merge.bookHeld': "Kept the MVU copy's own {n} variable-rule entries (the author's version uses another protocol; swapping it would break settlement)",
       'merge.bookParked': "Stored the author's {n} variable-protocol entries disabled, for reference; merging the lore inside them into the MVU rule is a reading job for the card workspace",
+      'merge.bookDup': '{n} world book titles appear more than once, so the same lore is injected twice; worth merging in the card workspace',
       'flag.autoBump': 'Auto bump character_version',
       'flag.autoBump.d': 'e.g. V4.3.3 -> V4.3.4; MVU strings gain -mvu-N.',
       'label.file': 'Original',
@@ -822,6 +820,8 @@ window.__ModuleLoader__.load({
       if (m) return t('merge.bookHeld').replace('{n}', m[1])
       m = text.match(/^book:parked:(\d+)$/)
       if (m) return t('merge.bookParked').replace('{n}', m[1])
+      m = text.match(/^book:dup:(\d+)$/)
+      if (m) return t('merge.bookDup').replace('{n}', m[1])
       if (text === 'book:adopted') return t('merge.bookAdopted')
       m = text.match(/^regex:\+(\d+)$/)
       if (m) return t('merge.regexAdded').replace('{n}', m[1])
@@ -2546,22 +2546,6 @@ window.__ModuleLoader__.load({
       )
 
       /**
-       * Settle the four names a copy carries between themselves.
-       *
-       * Importing and merging already do this for the card they touch, which
-       * leaves every card configured before that still holding whatever its
-       * conversion happened to write. Seven of the eight here disagreed with
-       * themselves — one read 5.2 in two places and 5.3 in a third.
-       */
-      const doUnifyNames = useCallback(
-        async function () {
-          if (blockedByDebug()) return
-          await u.run('unifyNames', {}, t('ok.unifyNames'))
-        },
-        [blockedByDebug, u],
-      )
-
-      /**
        * Hand the snapshot folder to the system file manager. Old snapshots are
        * pruned automatically, but "where are they and how do I clear them" is the
        * question people actually ask, and answering with a path they have to
@@ -2800,11 +2784,6 @@ window.__ModuleLoader__.load({
               'button',
               { type: 'button', className: 'dcu-btn tiny ghost', disabled: u.busy, onClick: doManualBackup },
               t('btn.manualBackup'),
-            ),
-            h(
-              'button',
-              { type: 'button', className: 'dcu-btn tiny ghost', disabled: u.busy, onClick: doUnifyNames },
-              t('btn.unifyNames'),
             ),
             h(
               'button',
