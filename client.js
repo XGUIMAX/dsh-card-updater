@@ -27,7 +27,6 @@ window.__ModuleLoader__.load({
       'btn.checkUpdate': '检测更新',
       'btn.checkAll': '检测全部',
       'btn.check': '检测',
-      'btn.update': '更新原版',
       'btn.merge': '合并到 MVU',
       'btn.updateMerge': '更新并合并',
       'btn.updateAll': '更新全部原版',
@@ -89,7 +88,7 @@ window.__ModuleLoader__.load({
       'primary.newer': '作者已发布新版',
       'primary.newerUnstated': '作者发布了新更新，贴子没写版本号',
       'primary.postedAt': '贴子更新于 {at}',
-      'primary.renamed': '贴子标题里没有「{from}」，作者可能改过名（现在叫 {to}）',
+      'primary.renamed': '作者改过贴子名，链接仍是同一个（现在叫 {to}）',
       'primary.current': '未发现比本地更新的版本',
       'primary.gated': '有下载条件',
       'primary.error': '检索失败',
@@ -132,7 +131,6 @@ window.__ModuleLoader__.load({
       'ok.check': '检测完成',
       'ok.removed': '已删除条目',
       'ok.imported': '已导入新版卡',
-      'ok.apply': '原版卡已更新',
       'ok.debugHint': '为确保卡功能与内容完善，建议调试一遍',
       'debug.plain': '原卡',
       'debug.mvu': 'MVU 版',
@@ -215,7 +213,6 @@ window.__ModuleLoader__.load({
       'btn.checkUpdate': 'Check update',
       'btn.checkAll': 'Check all',
       'btn.check': 'Check',
-      'btn.update': 'Update original',
       'btn.merge': 'Merge into MVU',
       'btn.updateMerge': 'Update & merge',
       'btn.updateAll': 'Update originals',
@@ -278,7 +275,7 @@ window.__ModuleLoader__.load({
       'primary.newer': 'New version published',
       'primary.newerUnstated': 'Author posted an update; the thread states no version',
       'primary.postedAt': 'Thread updated {at}',
-      'primary.renamed': 'Title does not contain "{from}"; the author may have renamed it (now: {to})',
+      'primary.renamed': 'The author renamed this thread; the link is unchanged (now: {to})',
       'primary.current': 'Nothing newer than the local card',
       'primary.gated': 'Download conditions',
       'primary.error': 'watch failed',
@@ -321,7 +318,6 @@ window.__ModuleLoader__.load({
       'ok.check': 'Check finished',
       'ok.removed': 'Entry removed',
       'ok.imported': 'New version imported',
-      'ok.apply': 'Original updated',
       'ok.debugHint': 'Worth a debug pass to confirm the card still works end to end',
       'debug.plain': 'Original',
       'debug.mvu': 'MVU',
@@ -929,14 +925,13 @@ window.__ModuleLoader__.load({
         })
       }
       if (state.renamedFrom && state.title) {
-        // Said plainly, because a renamed thread is still the card people already
-        // have: someone searching for the old name would conclude it had gone.
-        // Both names are cut short — thread titles run to a hundred characters of
-        // tags and emoji, and the point is that they differ, not what they say.
-        const brief = (s) => (String(s).length > 24 ? String(s).slice(0, 24) + '…' : String(s))
+        // The link is what identifies the card, and it has not changed — only the
+        // heading on top of it. Said that way round, because a message about the
+        // title alone reads like a warning that the link might be wrong.
+        const brief = (s) => (String(s).length > 32 ? String(s).slice(0, 32) + '…' : String(s))
         bits.push({
           kind: 'info',
-          text: t('primary.renamed').replace('{from}', brief(state.renamedFrom)).replace('{to}', brief(state.title)),
+          text: t('primary.renamed').replace('{to}', brief(state.title)),
         })
       }
       if (state.discoveredAt) {
@@ -1078,7 +1073,7 @@ window.__ModuleLoader__.load({
 
     /* --------------------------------------------------------- components */
 
-    function EntryCard({ entry, u, patch, onPick, onCheck, onImportNew, onUpdate, onMerge, onUpdateMerge, onRemove, onDebug }) {
+    function EntryCard({ entry, u, patch, onPick, onCheck, onImportNew, onMerge, onUpdateMerge, onRemove, onDebug }) {
       const st = statusOf(entry, u.data ? u.data.lastReport : null)
       // This card's own last result, if the last thing that ran was about it.
       const note = u.message && u.message.cardId === entry.id ? u.message : null
@@ -1378,19 +1373,6 @@ window.__ModuleLoader__.load({
               onClick: () => onImportNew(entry.id),
             },
             t('btn.importNew'),
-          ),
-          // Refresh the original on its own. Importing brings a file the user
-          // already downloaded; this fetches one from the configured source, and
-          // stops there instead of carrying on into the MVU copy.
-          h(
-            'button',
-            {
-              type: 'button',
-              className: 'dcu-btn tiny',
-              disabled: u.busy || !linked,
-              onClick: () => onUpdate(entry.id),
-            },
-            t('btn.update'),
           ),
           hasMvu
             ? h(
@@ -2227,7 +2209,6 @@ window.__ModuleLoader__.load({
         },
         [blockedByDebug, u],
       )
-      const doUpdate = useCallback((id) => guarded(id, 'apply', t('ok.apply')), [guarded])
       const doMerge = useCallback((id) => guarded(id, 'merge', t('ok.merge')), [guarded])
       const doUpdateMerge = useCallback((id) => guarded(id, 'updateAndMerge', t('ok.updateMerge')), [guarded])
 
@@ -2604,7 +2585,6 @@ window.__ModuleLoader__.load({
                   onPick: (key) => pickFile(entry.id, key),
                   onCheck: doCheck,
                   onImportNew: pickImport,
-                  onUpdate: doUpdate,
                   onMerge: doMerge,
                   onUpdateMerge: doUpdateMerge,
                   onDebug: openDebug,
