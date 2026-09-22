@@ -132,6 +132,9 @@ window.__ModuleLoader__.load({
       'ok.removed': '已删除条目',
       'ok.imported': '已导入新版卡',
       'ok.debugHint': '为确保卡功能与内容完善，建议调试一遍',
+      'sync.label': '标签改为',
+      'sync.keyword': '关键词改为',
+      'sync.mvu': 'MVU 版改名',
       'debug.plain': '原卡',
       'debug.mvu': 'MVU 版',
       'debug.done': '{who}已调试',
@@ -319,6 +322,9 @@ window.__ModuleLoader__.load({
       'ok.removed': 'Entry removed',
       'ok.imported': 'New version imported',
       'ok.debugHint': 'Worth a debug pass to confirm the card still works end to end',
+      'sync.label': 'label set to',
+      'sync.keyword': 'keyword set to',
+      'sync.mvu': 'MVU copy renamed to',
       'debug.plain': 'Original',
       'debug.mvu': 'MVU',
       'debug.done': '{who} debugged',
@@ -971,6 +977,14 @@ window.__ModuleLoader__.load({
       // A rename is the part of an import worth reading: the card kept its path in
       // the config but not on disk, and the folder now says something different.
       if (r.renamed && r.renamed.to) bits.push(`${r.renamed.from} → ${r.renamed.to}`)
+      // The other names that follow a rename: the label, the keyword, and the MVU
+      // copy's file name. Reported because a silent rename is indistinguishable
+      // from a rename that did not happen.
+      if (r.synced) {
+        if (r.synced.label) bits.push(t('sync.label') + ' ' + r.synced.label)
+        if (r.synced.keyword) bits.push(t('sync.keyword') + ' ' + r.synced.keyword)
+        if (r.synced.mvu) bits.push(t('sync.mvu') + ' ' + r.synced.mvu)
+      }
       if (r.target) bits.push(String(r.target).split('\\').pop())
       return bits.length ? ' → ' + bits.join(' · ') : ''
     }
