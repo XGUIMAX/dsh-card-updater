@@ -968,6 +968,9 @@ window.__ModuleLoader__.load({
       if (r.changed && r.changed.length) bits.push(r.changed.slice(0, 8).join('、') + (r.changed.length > 8 ? ' …' : ''))
       if (r.book) bits.push(`书 +${r.book.added}/~${r.book.updated}/保留${r.book.conflicts}`)
       if (r.regexAdded) bits.push(`正则 +${r.regexAdded}`)
+      // A rename is the part of an import worth reading: the card kept its path in
+      // the config but not on disk, and the folder now says something different.
+      if (r.renamed && r.renamed.to) bits.push(`${r.renamed.from} → ${r.renamed.to}`)
       if (r.target) bits.push(String(r.target).split('\\').pop())
       return bits.length ? ' → ' + bits.join(' · ') : ''
     }
