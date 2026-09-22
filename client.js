@@ -2134,13 +2134,18 @@ window.__ModuleLoader__.load({
       // leave it buried under everything that stayed put. Array.sort is stable, so
       // cards of equal standing keep the order they were already in, and an
       // untouched panel looks exactly as the config lists it.
-      // Ranking. The default puts cards carrying news first and cards the workspace
-      // has never opened next. Choosing a sort in the toolbar replaces both: an
-      // order the user picked is the one they are looking for, and re-imposing the
-      // automatic ranking on top of it would fight the choice they just made.
+      // Ranking. The default puts cards carrying news first, then cards whose
+      // thread has been renamed, then cards the workspace has never opened.
+      // Choosing a sort in the toolbar replaces all three: an order the user
+      // picked is the one they are looking for, and re-imposing the automatic
+      // ranking on top of it would fight the choice they just made.
       const cardRank = (entry) => {
         if (statusOf(entry, report).kind === 'warn') return 0
-        return needsDebug(entry, u.data) ? 1 : 2
+        // A rename is worth surfacing: the card is the same card and the link has
+        // not moved, but the name people know it by has, and that is easy to miss
+        // in a long list.
+        if (entry.primary && entry.primary.renamedFrom) return 1
+        return needsDebug(entry, u.data) ? 2 : 3
       }
       const allCards = (cfg && cfg.cards) || []
       const needle = query.trim().toLowerCase()
