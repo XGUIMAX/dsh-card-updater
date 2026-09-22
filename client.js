@@ -95,9 +95,9 @@ window.__ModuleLoader__.load({
       'strategy.advice': '选择建议：日常跟随作者更新用「内容字段 + 世界书」；只改了人设文案、不想动世界书时用「内容字段」；确实需要某条 MVU 版没有的脚本时临时切到第三档，合并后切回第二档。',
       'flag.syncPlain': '合并结果写回原版卡',
       'flag.syncPlain.d': '让原版卡也带上 MVU 状态栏，新档可直接用原版卡开。',
-      'flag.bookPrefer': '世界书冲突时用作者的新版',
+      'flag.bookPrefer': '作者改过的世界书条目跟着更新',
       'flag.bookPrefer.d':
-        '两边都有但内容不同的条目，用作者新版覆盖 MVU 版。MVU 版那一条通常是旧版本而不是你改的，所以关掉这个开关，作者的修订就进不来。关掉后这类条目会保留 MVU 版并在记录里列出。',
+        '两边都有但内容不同的条目：MVU 版那一条如果和上次合并留下的一模一样，说明你没动过，就用作者新版覆盖；如果和上次的不一样，就是你改过，保留你的版本并在记录里列出来。关掉这个开关，两边不同的条目一律保留 MVU 版。',
       'merge.bookFromOriginal': '世界书更新了 {n} 条（改用作者新版的内容）',
       'flag.autoBump': '自动递增 character_version',
       'flag.autoBump.d': '例如 V4.3.3 → V4.3.4；已是 MVU 版本号则追加 -mvu-N。',
@@ -330,9 +330,9 @@ window.__ModuleLoader__.load({
       'strategy.advice': 'Suggestion: keep "Fields + world book" for everyday updates; use "Content fields" when you do not want the world book touched; switch to the third option only for a specific script the MVU copy lacks, then return to the middle one.',
       'flag.syncPlain': 'Write merge result back to the original',
       'flag.syncPlain.d': 'Keeps the original card MVU-capable for new save files.',
-      'flag.bookPrefer': "Let the author's text win world book conflicts",
+      'flag.bookPrefer': "Follow the author's revision of a world book entry",
       'flag.bookPrefer.d':
-        "For an entry both sides have with different content, take the author's version. The copy's text there is normally the older release rather than something you edited, so with this off the author's revisions never arrive. With it off, such entries keep the copy's text and are listed in the log.",
+        "For an entry both sides have with different content: if the copy's text is exactly what the last merge left there, nobody touched it, so the author's new text replaces it. If it differs, that edit is yours and the copy keeps it, with the entry named in the log. Turn this off and such entries always keep the copy's text.",
       'merge.bookFromOriginal': "{n} world book entries took the author's newer text",
       'flag.autoBump': 'Auto bump character_version',
       'flag.autoBump.d': 'e.g. V4.3.3 -> V4.3.4; MVU strings gain -mvu-N.',
