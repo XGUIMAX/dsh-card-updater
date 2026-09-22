@@ -36,12 +36,15 @@ window.__ModuleLoader__.load({
       'btn.backups': '备份与还原',
       'btn.pickFile': '选择',
       'btn.manualBackup': '手动备份',
+      'btn.unifyNames': '统一卡名',
+      'ok.unifyNames': '卡名已统一',
       'btn.restorePanel': '还原',
       'backup.note':
         '每次写入前自动备份，每个文件保留最近 {perFile} 份、全部上限 {total} 份，超出自动清理；想立刻清掉旧的就打开目录手动删。',
       'backup.open': '打开备份目录',
       'merge.fields': '更新了 {what}',
       'merge.fieldsKept': '保留了 MVU 版自己的 {what}（里面是状态栏代码，换成原版会让状态栏失效）',
+      'merge.scriptsKept': '原版有 {n} 条脚本没有自动加入（多是旧式状态栏或界面规则），需要时请在卡片工作台手动添加',
       'merge.fieldSep': '、',
       'merge.bookAdded': '世界书新增了 {n} 条',
       'merge.bookFilled': '世界书补全了 {n} 条',
@@ -77,19 +80,19 @@ window.__ModuleLoader__.load({
       'btn.rollback': '恢复到此备份',
       'btn.autoCheck': '自动检测',
       'strategy.title': '合并策略',
-      'strategy.desc': '只同步原版卡的内容字段；MVU 版的状态栏、变量脚本与正则始终保留。',
+      'strategy.desc': '正文内容以新版原版卡为准；状态栏、脚本与界面机制以 MVU 版为准。',
       'strategy.minimal': '内容字段',
       'strategy.minimal.d': '名称、描述、人格、场景、开场白、示例对话等正文字段。',
       'strategy.standard': '内容字段 + 世界书',
       'strategy.standard.d': '再按条目合并内嵌世界书：原版新增条目写入，内容一致按原版更新，本地改过的条目保留并报告。',
       'strategy.full': '内容字段 + 世界书 + 原版脚本',
-      'strategy.full.d': '再把只在原版存在的正则脚本补进 MVU 版；同名脚本原样保留。',
+      'strategy.full.d': '再把「原版独有、且不涉及状态栏机制」的脚本补进 MVU 版；同名脚本一律保持 MVU 版的样子。',
       'strategy.detail': '详细',
       'strategy.more': '收起',
       'strategy.minimal.long': '范围：name / description / personality / scenario / first_mes / mes_example / system_prompt / post_history_instructions / creator_notes / creator / tags / alternate_greetings 共 12 个正文字段。\n动作：逐字段比对原版卡与 MVU 版，不同就采用原版的值；世界书（character_book）与正则脚本（regex_scripts）一律不动。\n适用：作者只改了人设设定、场景描述或新增开场白（alternate_greetings）。\n结果：合并记录会把被改写的字段名写成中文，例如「更新了 角色名、开场白、备选开场白」。',
-      'strategy.standard.long': '范围：第一档全部字段，外加内嵌世界书 character_book。\n动作：按条目合并而非整本替换 —— ①原版有、MVU 版没有的条目直接写入；②两边都有且内容与关键词一致则跳过；③MVU 版该条目内容为空则用原版补上；④两边都有但内容不同则保留 MVU 版，并计入「保留 N」报告。\n适用：日常跟随作者更新世界观词条，同时不改动你本地调整过的条目。\n结果：合并记录用中文写清这次做了什么，例如「世界书新增了 3 条」「保留了 MVU 版原有的 12 条没有被覆盖」，被保留的条目名会列在备份弹窗与条目提示里。',
-      'strategy.full.long': '范围：第一、二档的全部内容，外加正则脚本 regex_scripts。\n动作：按 scriptName 去重 —— 只把「仅存在于原版」的脚本追加到 MVU 版；MVU 版已有的同名脚本原样保留，不会被覆盖。\n风险：原版脚本常含旧式状态栏或变量渲染规则，与 MVU 版的状态栏脚本可能相互干扰，导致状态栏显示异常。\n适用：作者发布了你确实需要、且 MVU 版没有的新正则功能时临时选用，合并完成后建议切回「内容字段 + 世界书」。\n结果：合并记录会写「新增了 N 条正则脚本」，可与 MVU 版原有脚本数量核对。',
-      'strategy.advice': '选择建议：日常跟随作者更新用「内容字段 + 世界书」；只改了人设文案、不想动世界书时用「内容字段」；作者新增了你需要的正则功能时临时切到第三档，合并后切回第二档。',
+      'strategy.standard.long': '范围：第一档全部字段，外加内嵌世界书 character_book。\n动作：按条目合并而非整本替换 —— ①原版有、MVU 版没有的条目直接写入；②两边都有且内容与关键词一致则跳过；③MVU 版该条目内容为空则用原版补上；④两边都有但内容不同则保留 MVU 版，并计入「保留 N」报告。\n适用：日常跟随作者更新世界观词条，同时不改动你本地调整过的条目。\n结果：合并记录用中文写清这次做了什么，例如「世界书新增了 3 条」「保留了 MVU 版原有的 12 条没有被覆盖」；正则脚本一律不动，原版独有的只会被数出来，不会自动加入。',
+      'strategy.full.long': '范围：第一、二档的全部内容，外加正则脚本 regex_scripts。\n动作：以 MVU 版为参照 —— 同名的脚本一律保持 MVU 版的样子（无论它启用还是停用），只把「原版独有的、且不涉及状态栏机制」的脚本追加进去。\n原理：转换一张卡时会重做作者的脚本，丢掉被 MVU 机制取代的那些（旧式状态栏、商店界面、历史压缩）。原样塞回去会和转换后生成的脚本抢同一个占位符，谁生效取决于脚本顺序。\n风险：即便是非状态栏的脚本，也可能和 MVU 版重做过的界面重叠。\n适用：你确认某条脚本是 MVU 版缺失、且确实需要的新功能时。\n结果：合并记录会写「新增了 N 条正则脚本」；被跳过的会写成「原版有 N 条脚本没有自动加入」。',
+      'strategy.advice': '选择建议：日常跟随作者更新用「内容字段 + 世界书」；只改了人设文案、不想动世界书时用「内容字段」；确实需要某条 MVU 版没有的脚本时临时切到第三档，合并后切回第二档。',
       'flag.syncPlain': '合并结果写回原版卡',
       'flag.syncPlain.d': '让原版卡也带上 MVU 状态栏，新档可直接用原版卡开。',
       'flag.autoBump': '自动递增 character_version',
@@ -264,12 +267,15 @@ window.__ModuleLoader__.load({
       'btn.backups': 'Backups',
       'btn.pickFile': 'Pick',
       'btn.manualBackup': 'Backup now',
+      'btn.unifyNames': 'Unify names',
+      'ok.unifyNames': 'Names unified',
       'btn.restorePanel': 'Restore',
       'backup.note':
         'A snapshot is taken before every write: the newest {perFile} per card are kept, {total} in total, and older ones are pruned. To clear them sooner, open the folder and delete them.',
       'backup.open': 'open backup folder',
       'merge.fields': 'Updated {what}',
       'merge.fieldsKept': "Kept the MVU copy's own {what} (it carries status-bar code)",
+      'merge.scriptsKept': '{n} author scripts were not added (mostly legacy status-bar or UI rules); add them by hand if you need them',
       'merge.fieldSep': ', ',
       'merge.bookAdded': 'Added {n} world book entries',
       'merge.bookFilled': 'Filled in {n} world book entries',
@@ -305,19 +311,19 @@ window.__ModuleLoader__.load({
       'btn.rollback': 'Restore this backup',
       'btn.autoCheck': 'Auto check',
       'strategy.title': 'Merge strategy',
-      'strategy.desc': 'Only content fields are synced; the MVU status bar, scripts and regex stay untouched.',
+      'strategy.desc': 'Prose follows the new original; the status bar, scripts and UI follow the MVU copy.',
       'strategy.minimal': 'Content fields',
       'strategy.minimal.d': 'name / description / personality / scenario / first_mes / mes_example and friends.',
       'strategy.standard': 'Fields + world book',
       'strategy.standard.d': 'Also merge the embedded character_book by entry.',
       'strategy.full': 'Fields + book + original regex',
-      'strategy.full.d': 'Also copy regex scripts that exist only in the original.',
+      'strategy.full.d': 'Also add author-only scripts, skipping any that touch the status-bar machinery. Same-named scripts keep the MVU copy\'s version.',
       'strategy.detail': 'Details',
       'strategy.more': 'Less',
       'strategy.minimal.long': 'Scope: the 12 body fields — name / description / personality / scenario / first_mes / mes_example / system_prompt / post_history_instructions / creator_notes / creator / tags / alternate_greetings.\nAction: compare each field; differing ones take the original value. The world book and regex scripts are never touched.\nUse when: the author only edited prose, scenario or added greetings.\nResult: the merge log lists every rewritten field name.',
-      'strategy.standard.long': 'Scope: everything above plus the embedded world book (character_book).\nAction: merge by entry, not by replacing the book — ① entries only in the original are added; ② entries identical on both sides are skipped; ③ entries empty on the MVU side take the original; ④ entries that differ keep the MVU version and are reported.\nUse when: following the author normal updates without losing local edits.\nResult: the merge log shows character_book(+added / ~updated / kept N).',
-      'strategy.full.long': 'Scope: everything above plus regex_scripts.\nAction: de-duplicate by scriptName — only scripts that exist solely in the original are appended; same-named scripts in the MVU card win.\nRisk: original scripts often carry legacy status-bar or variable rendering rules that can fight the MVU status bar.\nUse when: the author shipped a new regex feature you actually need; switch back to the middle option afterwards.\nResult: the merge log shows regex_scripts(+N).',
-      'strategy.advice': 'Suggestion: keep "Fields + world book" for everyday updates; use "Content fields" when you do not want the world book touched; switch to the third option only for a needed new regex feature, then return to the middle one.',
+      'strategy.standard.long': 'Scope: everything above plus the embedded world book (character_book).\nAction: merge by entry, not by replacing the book — ① entries only in the original are added; ② entries identical on both sides are skipped; ③ entries empty on the MVU side take the original; ④ entries that differ keep the MVU version and are reported.\nUse when: following the author normal updates without losing local edits.\nResult: the log states what was done in words; regex scripts are never touched, and ones only the original has are counted, not added.',
+      'strategy.full.long': 'Scope: everything above plus regex_scripts.\nAction: the MVU copy is the reference — a same-named script keeps the copy\'s version, whether it is enabled or disabled there, and only scripts that exist solely in the original and have nothing to do with the status-bar machinery are appended.\nWhy: converting a card reworks the author\'s scripts and drops the ones MVU replaces (legacy status bar, shop screen, history compressor). Putting them back means two scripts watching one placeholder, with script order deciding which is seen.\nRisk: even a script without status-bar code can overlap a screen the conversion rebuilt.\nUse when: you have confirmed a script is missing from the MVU copy and you actually need it.\nResult: the log counts what was added, and what was left out as "N author scripts were not added".',
+      'strategy.advice': 'Suggestion: keep "Fields + world book" for everyday updates; use "Content fields" when you do not want the world book touched; switch to the third option only for a specific script the MVU copy lacks, then return to the middle one.',
       'flag.syncPlain': 'Write merge result back to the original',
       'flag.syncPlain.d': 'Keeps the original card MVU-capable for new save files.',
       'flag.autoBump': 'Auto bump character_version',
@@ -790,6 +796,8 @@ window.__ModuleLoader__.load({
         const names = m[1].split(',').map((f) => fieldName(f))
         return t('merge.fieldsKept').replace('{what}', names.join(t('merge.fieldSep')))
       }
+      m = text.match(/^scripts:kept:(\d+)$/)
+      if (m) return t('merge.scriptsKept').replace('{n}', m[1])
       m = text.match(/^book:\+(\d+)$/)
       if (m) return t('merge.bookAdded').replace('{n}', m[1])
       m = text.match(/^book:~(\d+)$/)
@@ -2519,6 +2527,22 @@ window.__ModuleLoader__.load({
       )
 
       /**
+       * Settle the four names a copy carries between themselves.
+       *
+       * Importing and merging already do this for the card they touch, which
+       * leaves every card configured before that still holding whatever its
+       * conversion happened to write. Seven of the eight here disagreed with
+       * themselves — one read 5.2 in two places and 5.3 in a third.
+       */
+      const doUnifyNames = useCallback(
+        async function () {
+          if (blockedByDebug()) return
+          await u.run('unifyNames', {}, t('ok.unifyNames'))
+        },
+        [blockedByDebug, u],
+      )
+
+      /**
        * Hand the snapshot folder to the system file manager. Old snapshots are
        * pruned automatically, but "where are they and how do I clear them" is the
        * question people actually ask, and answering with a path they have to
@@ -2757,6 +2781,11 @@ window.__ModuleLoader__.load({
               'button',
               { type: 'button', className: 'dcu-btn tiny ghost', disabled: u.busy, onClick: doManualBackup },
               t('btn.manualBackup'),
+            ),
+            h(
+              'button',
+              { type: 'button', className: 'dcu-btn tiny ghost', disabled: u.busy, onClick: doUnifyNames },
+              t('btn.unifyNames'),
             ),
             h(
               'button',
