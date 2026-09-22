@@ -38,7 +38,9 @@ window.__ModuleLoader__.load({
       'btn.pickFile': '选择',
       'btn.manualBackup': '手动备份',
       'btn.restorePanel': '还原',
-      'backup.auto': '备份在每次写入前自动生成，超过 40 份自动清理',
+      'backup.note':
+        '每次写入前自动备份，每个文件保留最近 {perFile} 份、全部上限 {total} 份，超出自动清理；想立刻清掉旧的就打开目录手动删。',
+      'backup.open': '打开备份目录',
       'ok.manualBackup': '已手动备份全部卡片',
       'btn.close': '关闭',
       'btn.reload': '重新载入',
@@ -230,7 +232,9 @@ window.__ModuleLoader__.load({
       'btn.pickFile': 'Pick',
       'btn.manualBackup': 'Backup now',
       'btn.restorePanel': 'Restore',
-      'backup.auto': 'A snapshot is taken before every write; older ones beyond 40 are pruned',
+      'backup.note':
+        'A snapshot is taken before every write: the newest {perFile} per card are kept, {total} in total, and older ones are pruned. To clear them sooner, open the folder and delete them.',
+      'backup.open': 'open backup folder',
       'ok.manualBackup': 'All cards backed up manually',
       'btn.close': 'Close',
       'btn.reload': 'Reload',
@@ -439,6 +443,10 @@ window.__ModuleLoader__.load({
       // Version tag next to the update button. Monospace keeps the digits the
       // same width as the version the button itself prints.
       '.dcu-ver{font-family:ui-monospace,Consolas,monospace;letter-spacing:.02em;color:var(--dsw-alias-label-primary)}',
+      // An action that sits inside a sentence rather than in a button row.
+      // Underlined so it reads as clickable without needing a border.
+      '.dcu-link{color:var(--dsw-alias-brand-primary);cursor:pointer;text-decoration:underline;text-underline-offset:2px}',
+      '.dcu-link:hover{opacity:.75}',
       '.dcu-input{height:28px;border-radius:7px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-size:12px;padding:0 10px;width:100%;box-sizing:border-box;min-width:0}',
       '.dcu-input:focus{outline:none;border-color:var(--dsw-alias-brand-primary)}',
       '.dcu-avatar{flex:0 0 auto;width:48px;height:48px;border-radius:10px;overflow:hidden;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1)}',
@@ -2311,6 +2319,23 @@ window.__ModuleLoader__.load({
         [blockedByDebug, u],
       )
 
+      /**
+       * Hand the snapshot folder to the system file manager. Old snapshots are
+       * pruned automatically, but "where are they and how do I clear them" is the
+       * question people actually ask, and answering with a path they have to
+       * retype is not answering it.
+       */
+      const openBackups = useCallback(async () => {
+        const dir = u.data && u.data.backupDir
+        if (!dir) return
+        try {
+          await apiPost({ action: 'openFolder', path: dir })
+          setError(null)
+        } catch (e) {
+          setError(String(e && e.message ? e.message : e))
+        }
+      }, [u.data])
+
       /** Open the file browser in import mode for one card's original. */
       const pickImport = useCallback((entryId) => {
         setBrowse({ id: entryId, key: 'import', mode: 'import' })
@@ -2562,6 +2587,16 @@ window.__ModuleLoader__.load({
               },
               t('btn.reload'),
             ),
+          ),
+          // The snapshot folder is the one place this plugin writes that the user
+          // may want to clear by hand, so the line says how retention works and
+          // offers the folder, rather than making them retype the path.
+          h(
+            'div',
+            { className: 'dcu-sub', style: { marginTop: 4 } },
+            t('backup.note').replace('{perFile}', '5').replace('{total}', '400'),
+            ' ',
+            h('span', { className: 'dcu-link', onClick: openBackups }, t('backup.open')),
           ),
           // Search and filtering sit below the view bar: they act on the card list
           // rather than on the panel, and only a long collection needs them.
