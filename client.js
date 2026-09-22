@@ -28,7 +28,6 @@ window.__ModuleLoader__.load({
       'btn.checkAll': '检测全部',
       'btn.check': '检测',
       'btn.merge': '合并到 MVU',
-      'btn.updateMerge': '更新并合并',
       'btn.updateAll': '更新全部原版',
       'btn.save': '保存',
       'btn.rescan': '重新扫描卡片目录',
@@ -42,6 +41,7 @@ window.__ModuleLoader__.load({
         '每次写入前自动备份，每个文件保留最近 {perFile} 份、全部上限 {total} 份，超出自动清理；想立刻清掉旧的就打开目录手动删。',
       'backup.open': '打开备份目录',
       'merge.fields': '更新了 {what}',
+      'merge.fieldsKept': '保留了 MVU 版自己的 {what}（里面是状态栏代码，换成原版会让状态栏失效）',
       'merge.fieldSep': '、',
       'merge.bookAdded': '世界书新增了 {n} 条',
       'merge.bookFilled': '世界书补全了 {n} 条',
@@ -195,7 +195,6 @@ window.__ModuleLoader__.load({
         '本插件是基于 DSH Tavern 的功能插件，请先安装 DSH Tavern。人物卡、卡片工作台与游玩数据都由它提供，这个插件只负责比对远端更新、更新原版卡并合并进 MVU 版。',
       'tavern.missing.open': '打开 DSH Tavern 仓库',
       'ok.merge': '合并完成',
-      'ok.updateMerge': '更新并合并完成',
       'ok.restore': '已从备份恢复',
       'hint.interval': '自动检测间隔（分钟，0 = 关闭）：由后台执行，无需保持面板打开',
       'err.bridge': '无法连接后台：卡片更新器插件可能未加载完成，稍后重试。',
@@ -257,7 +256,6 @@ window.__ModuleLoader__.load({
       'btn.checkAll': 'Check all',
       'btn.check': 'Check',
       'btn.merge': 'Merge into MVU',
-      'btn.updateMerge': 'Update & merge',
       'btn.updateAll': 'Update originals',
       'btn.save': 'Save',
       'btn.rescan': 'Rescan card dir',
@@ -271,6 +269,7 @@ window.__ModuleLoader__.load({
         'A snapshot is taken before every write: the newest {perFile} per card are kept, {total} in total, and older ones are pruned. To clear them sooner, open the folder and delete them.',
       'backup.open': 'open backup folder',
       'merge.fields': 'Updated {what}',
+      'merge.fieldsKept': "Kept the MVU copy's own {what} (it carries status-bar code)",
       'merge.fieldSep': ', ',
       'merge.bookAdded': 'Added {n} world book entries',
       'merge.bookFilled': 'Filled in {n} world book entries',
@@ -425,7 +424,6 @@ window.__ModuleLoader__.load({
         'This plugin is a companion to DSH Tavern, which has to be installed first. Tavern owns the cards, the card workspace and the play data; this plugin only diffs remote updates, refreshes the original card and merges into the MVU copy.',
       'tavern.missing.open': 'Open the DSH Tavern repository',
       'ok.merge': 'Merge finished',
-      'ok.updateMerge': 'Update + merge finished',
       'ok.restore': 'Restored from backup',
       'hint.interval': 'Auto check interval (minutes, 0 = off) — runs in the background',
       'err.bridge': 'Cannot reach the host half yet; retry in a moment.',
@@ -786,6 +784,11 @@ window.__ModuleLoader__.load({
       if (m) {
         const names = m[1].split(',').map((f) => fieldName(f))
         return t('merge.fields').replace('{what}', names.join(t('merge.fieldSep')))
+      }
+      m = text.match(/^kept:(.+)$/)
+      if (m) {
+        const names = m[1].split(',').map((f) => fieldName(f))
+        return t('merge.fieldsKept').replace('{what}', names.join(t('merge.fieldSep')))
       }
       m = text.match(/^book:\+(\d+)$/)
       if (m) return t('merge.bookAdded').replace('{n}', m[1])
@@ -1162,7 +1165,7 @@ window.__ModuleLoader__.load({
      * depended on the old wording can be off, and that only surfaces once the card
      * is actually played.
      */
-    const WRITES_CARD = new Set(['apply', 'merge', 'updateAndMerge', 'importPlain'])
+    const WRITES_CARD = new Set(['apply', 'merge', 'importPlain'])
 
     function summarize(res) {
       const r = res && res.result
@@ -1292,7 +1295,7 @@ window.__ModuleLoader__.load({
 
     /* --------------------------------------------------------- components */
 
-    function EntryCard({ entry, u, patch, onPick, onCheck, onImportNew, onMerge, onUpdateMerge, onRemove, onDebug }) {
+    function EntryCard({ entry, u, patch, onPick, onCheck, onImportNew, onMerge, onRemove, onDebug }) {
       const st = statusOf(entry, u.data ? u.data.lastReport : null)
       // This card's own last result, if the last thing that ran was about it.
       const note = u.message && u.message.cardId === entry.id ? u.message : null
@@ -1594,20 +1597,15 @@ window.__ModuleLoader__.load({
           hasMvu
             ? h(
                 'button',
-                { type: 'button', className: 'dcu-btn tiny', disabled: u.busy, onClick: () => onMerge(entry.id) },
+                {
+                  type: 'button',
+                  className: 'dcu-btn tiny primary',
+                  disabled: u.busy,
+                  onClick: () => onMerge(entry.id),
+                },
                 t('btn.merge'),
               )
             : null,
-          h(
-            'button',
-            {
-              type: 'button',
-              className: 'dcu-btn tiny primary',
-              disabled: u.busy || !linked || !hasMvu,
-              onClick: () => onUpdateMerge(entry.id),
-            },
-            t('btn.updateMerge'),
-          ),
           h(
             'button',
             { type: 'button', className: 'dcu-btn tiny ghost', disabled: u.busy, onClick: () => onRemove(entry.id) },
@@ -2453,7 +2451,6 @@ window.__ModuleLoader__.load({
         [blockedByDebug, u],
       )
       const doMerge = useCallback((id) => guarded(id, 'merge', t('ok.merge')), [guarded])
-      const doUpdateMerge = useCallback((id) => guarded(id, 'updateAndMerge', t('ok.updateMerge')), [guarded])
 
       /**
        * Open the workspace's debug conversation for a card, through the play
@@ -2858,7 +2855,6 @@ window.__ModuleLoader__.load({
                   onCheck: doCheck,
                   onImportNew: pickImport,
                   onMerge: doMerge,
-                  onUpdateMerge: doUpdateMerge,
                   onDebug: openDebug,
                   onRemove: removeEntry,
                 }),
