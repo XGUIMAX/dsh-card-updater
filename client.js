@@ -135,6 +135,8 @@ window.__ModuleLoader__.load({
       'sync.label': '标签改为',
       'sync.keyword': '关键词改为',
       'sync.mvu': 'MVU 版改名',
+      'sync.chats': '对话重指向',
+      'sync.avatar': '头像同步改名',
       'debug.plain': '原卡',
       'debug.mvu': 'MVU 版',
       'debug.done': '{who}已调试',
@@ -325,6 +327,8 @@ window.__ModuleLoader__.load({
       'sync.label': 'label set to',
       'sync.keyword': 'keyword set to',
       'sync.mvu': 'MVU copy renamed to',
+      'sync.chats': 'conversations repointed',
+      'sync.avatar': 'avatar renamed too',
       'debug.plain': 'Original',
       'debug.mvu': 'MVU',
       'debug.done': '{who} debugged',
@@ -984,6 +988,8 @@ window.__ModuleLoader__.load({
         if (r.synced.label) bits.push(t('sync.label') + ' ' + r.synced.label)
         if (r.synced.keyword) bits.push(t('sync.keyword') + ' ' + r.synced.keyword)
         if (r.synced.mvu) bits.push(t('sync.mvu') + ' ' + r.synced.mvu)
+        if (r.synced.chats) bits.push(t('sync.chats') + ' ' + r.synced.chats)
+        if (r.synced.avatar && r.synced.avatar.length) bits.push(t('sync.avatar'))
       }
       if (r.target) bits.push(String(r.target).split('\\').pop())
       return bits.length ? ' → ' + bits.join(' · ') : ''
