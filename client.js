@@ -82,6 +82,12 @@ window.__ModuleLoader__.load({
       'index.renew': '重新获取令牌',
       'index.howto':
         '获取方式：在索引站页面按 F12 打开控制台，执行 localStorage.getItem("auth_token")，把返回值（不含引号）粘贴到这里。令牌只保存在本机配置里，仅用于请求 forum.shimmerday.top。索引站的令牌有效期约 7 天，过期后重新登录一次再取就行。',
+      'discord.title': 'Discord 访问授权（可选）',
+      'discord.desc':
+        '索引站只收录贴子的标题和摘要，作者写的版本号（例如「9月21日更新5.3」）在正文里，索引站看不到。填一个 Discord 令牌，插件就能读取索引站指向的那一条更新消息，从作者自己的话里取版本号。不填也能用，只是版本号只能靠标题推断。',
+      'discord.placeholder': '粘贴 Discord token（留空则不用）',
+      'discord.howto':
+        '获取方式：在 Discord 网页版按 F12 打开控制台，从「网络」面板里任意一个请求的 Authorization 请求头复制那一串。令牌只保存在本机配置里，只用来读取索引站已经指明的那一条消息，不会遍历频道。它等价于你的账号凭据，Discord 官方也不赞成脚本化使用，是否填写请你自行判断。',
       'primary.changed': '贴子有变化',
       'primary.feed': '动态提到',
       'primary.discordNeedToken': '这是 Discord 贴子链接，请在「合并设置」里填入索引站令牌',
@@ -271,6 +277,12 @@ window.__ModuleLoader__.load({
       'index.renew': 'Get a new token',
       'index.howto':
         'On the index site press F12, run localStorage.getItem("auth_token") in the console, and paste the value here without quotes. It is stored locally and sent only to forum.shimmerday.top. These tokens last about seven days; sign in again to get a fresh one.',
+      'discord.title': 'Discord access (optional)',
+      'discord.desc':
+        'The index carries a thread\'s title and summary, but not its body, and that is where authors state the version — "9月21日更新5.3" is in the post, not the headline. With a Discord token the plugin reads the single message the index already points at and takes the version from what the author wrote. Without one everything still works; the version is just inferred from the title.',
+      'discord.placeholder': 'paste a Discord token (leave empty to skip)',
+      'discord.howto':
+        'How to get one: open Discord in a browser, press F12, and copy the Authorization header from any request in the Network tab. The token is stored locally and used only to read the one message the index named — no channel crawling. It is equivalent to your account credentials and Discord does not sanction scripted use, so whether to provide it is your call.',
       'primary.changed': 'Thread changed',
       'primary.feed': 'Feed mentions',
       'primary.discordNeedToken': 'Discord thread link: add an index token under Settings',
@@ -2027,6 +2039,22 @@ window.__ModuleLoader__.load({
               )
             : null,
           checking ? h('div', { className: 'dcu-sub' }, t('index.checking')) : null,
+        ),
+        // Optional, and separate from the index token: it grants a different
+        // reader access to a different service, and the plugin works without it.
+        h(
+          'div',
+          { className: 'dcu-card flat' },
+          h('div', { className: 'dcu-title', style: { fontSize: 13 } }, t('discord.title')),
+          h('div', { className: 'dcu-sub' }, t('discord.desc')),
+          h('input', {
+            className: 'dcu-input',
+            type: 'password',
+            placeholder: t('discord.placeholder'),
+            value: cfg.discordToken || '',
+            onChange: (ev) => setCfg({ ...cfg, discordToken: ev.target.value }),
+          }),
+          h('div', { className: 'dcu-sub' }, t('discord.howto')),
         ),
         h(
           'div',
