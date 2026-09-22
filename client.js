@@ -99,6 +99,8 @@ window.__ModuleLoader__.load({
       'flag.bookPrefer.d':
         '两边都有但内容不同的条目：MVU 版那一条如果和上次合并留下的一模一样，说明你没动过，就用作者新版覆盖；如果和上次的不一样，就是你改过，保留你的版本并在记录里列出来。关掉这个开关，两边不同的条目一律保留 MVU 版。',
       'merge.bookFromOriginal': '世界书更新了 {n} 条（改用作者新版的内容）',
+      'merge.bookHeld': '保留了 MVU 版自己的 {n} 条变量规则，没有换成作者版（两套变量协议不通用，换过去结算会失效）',
+      'merge.bookParked': '作者版的 {n} 条变量协议条目已收进卡里但保持停用，只作参考；要把它里面的内容规则并进 MVU 规则，需要在卡片工作台里逐项做',
       'flag.autoBump': '自动递增 character_version',
       'flag.autoBump.d': '例如 V4.3.3 → V4.3.4；已是 MVU 版本号则追加 -mvu-N。',
       'label.file': '原版卡',
@@ -334,6 +336,8 @@ window.__ModuleLoader__.load({
       'flag.bookPrefer.d':
         "For an entry both sides have with different content: if the copy's text is exactly what the last merge left there, nobody touched it, so the author's new text replaces it. If it differs, that edit is yours and the copy keeps it, with the entry named in the log. Turn this off and such entries always keep the copy's text.",
       'merge.bookFromOriginal': "{n} world book entries took the author's newer text",
+      'merge.bookHeld': "Kept the MVU copy's own {n} variable-rule entries (the author's version uses another protocol; swapping it would break settlement)",
+      'merge.bookParked': "Stored the author's {n} variable-protocol entries disabled, for reference; merging the lore inside them into the MVU rule is a reading job for the card workspace",
       'flag.autoBump': 'Auto bump character_version',
       'flag.autoBump.d': 'e.g. V4.3.3 -> V4.3.4; MVU strings gain -mvu-N.',
       'label.file': 'Original',
@@ -814,6 +818,10 @@ window.__ModuleLoader__.load({
       if (m) return t('merge.bookKept').replace('{n}', m[1])
       m = text.match(/^book:from:(\d+)$/)
       if (m) return t('merge.bookFromOriginal').replace('{n}', m[1])
+      m = text.match(/^book:held:(\d+)$/)
+      if (m) return t('merge.bookHeld').replace('{n}', m[1])
+      m = text.match(/^book:parked:(\d+)$/)
+      if (m) return t('merge.bookParked').replace('{n}', m[1])
       if (text === 'book:adopted') return t('merge.bookAdopted')
       m = text.match(/^regex:\+(\d+)$/)
       if (m) return t('merge.regexAdded').replace('{n}', m[1])
