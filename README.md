@@ -331,7 +331,9 @@ localStorage.getItem("auth_token")
 
 备份保留策略：每张卡文件保留最近 **5** 份，每个标签（导入 / 合并 / 手动 / 还原前）另各留最新 1 份，总量上限 **400** 份。
 
-**备份目录可以自己选。** 打开「还原」面板，目录那行有「选择备份目录」—— 点它打开的是 **DSH 自己的目录选择器**（桌面版就是系统的「选择文件夹」对话框），选完直接生效；宿主里没有这个选择器时（例如纯浏览器环境）自动退回面板自带的目录浏览器。换完之后旧目录里的快照会自动搬到新目录（同名冲突的保留原来的那份）；想改回来点「改回默认目录」。备份目录不能选在卡片目录里面，否则备份文件会被当成人物卡。
+**备份目录可以自己选。** 打开「还原」面板，目录那行有「选择备份目录」—— 点它先问 **宿主自己的目录选择器**（桌面版就是系统的「选择文件夹」对话框），选完直接生效。宿主的选择器没能打开时，自动退回面板自带的目录浏览器，并把**具体原因**写在上方一行（是宿主没有选择器、还是选择器自己报错），不再只是悄悄换一个界面。
+
+面板浏览器本身能跨盘：顶部的**路径输入框**接受 `D:\备份`、`D:`、带引号的粘贴路径、正斜杠，以及相对卡片目录的名字，回车或点「转到」即可；「盘符」按钮列出本机所有盘（`C:` `D:` …），盘根再点「上一层」就回到这个盘符表 —— 放在别的盘上的文件夹因此也够得着。换完目录旧目录里的快照会自动搬到新目录（同名冲突的保留原来的那份）；想改回来点「改回默认目录」。备份目录不能选在卡片目录里面，否则备份文件会被当成人物卡。
 
 自动清理只认本插件自己写的快照文件名（`<毫秒>__<标签>__<卡文件名>.json`）。所以就算把备份目录指到一个放满别的 JSON 的文件夹，清理也不会碰它们；搬目录时同样只搬自己的快照。
 
@@ -397,9 +399,9 @@ client.js      浏览器端：面板、设置区、侧栏入口
 宿主端注册四个路由，浏览器端通过它们通信：
 
 - `GET  /dsh-card-updater/state` — 配置与最近报告
-- `GET  /dsh-card-updater/list` — 目录浏览
+- `GET  /dsh-card-updater/list` — 目录浏览（`?path=` 可为空、盘符表、或任意可解析路径）
 - `GET  /dsh-card-updater/avatar` — 卡片头像
-- `POST /dsh-card-updater/action` — 所有操作，取值为 `check` / `importPlain` / `merge` / `updateAndMerge` / `save` / `suggest` / `backupList` / `restoreBackup` / `deleteBackup` / `manualBackup` / `prune` / `setBackupDir` / `verifyIndex` / `openFolder` / `checkUpdate` / `selfcheck` 等
+- `POST /dsh-card-updater/action` — 所有操作，取值为 `check` / `importPlain` / `merge` / `updateAndMerge` / `save` / `suggest` / `backupList` / `restoreBackup` / `deleteBackup` / `manualBackup` / `prune` / `setBackupDir` / `verifyIndex` / `pickFolder` / `openFolder` / `checkUpdate` / `selfcheck` 等
 
 改了 `lib/index.js` 需要重启 DSH；只改 `client.js` 刷新页面即可。
 

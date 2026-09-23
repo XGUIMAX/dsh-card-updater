@@ -220,7 +220,11 @@ window.__ModuleLoader__.load({
       'pick.empty': '该目录下没有 JSON 文件',
       'pick.useDir': '用这个目录',
       'pick.emptyDir': '该目录下没有子目录',
-      'pick.noNative': '这个宿主没有装系统目录选择器，已退回面板内的浏览器',
+      'pick.noNative': '系统目录选择器没有打开，已退回面板内的浏览器',
+      'pick.drives': '盘符',
+      'pick.drive': '磁盘',
+      'pick.go': '转到',
+      'pick.placeholder': '直接输入路径，例如 D:\\备份 或 D:',
       'pick.choose': '选择此文件',
       'err.list': '读取目录失败',
       'restore.title': '还原到某个备份',
@@ -465,7 +469,11 @@ window.__ModuleLoader__.load({
       'pick.empty': 'No JSON file in this directory',
       'pick.useDir': 'Use this folder',
       'pick.emptyDir': 'No subfolder in this directory',
-      'pick.noNative': 'This host has no system folder chooser, so the panel browser is used',
+      'pick.noNative': 'The system folder chooser did not open, so the panel browser is used',
+      'pick.drives': 'Drives',
+      'pick.drive': 'drive',
+      'pick.go': 'Go',
+      'pick.placeholder': 'Type a path, e.g. D:\\backups or D:',
       'pick.choose': 'Choose',
       'err.list': 'Directory read failed',
       'restore.title': 'Restore a backup',
@@ -716,20 +724,25 @@ window.__ModuleLoader__.load({
      */
     let folderPicker = null
 
+    /** The client root context, kept so a late pick can re-resolve. */
+    let clientCtx = null
+
     /**
-     * @param {object} ctx - the client plugin context.
+     * @param {object} [ctx] - a client context; the one captured at apply when omitted.
      * @returns {object|null} the service, when it can pick folders.
      */
     function resolveFolderPicker(ctx) {
+      const scope = ctx || clientCtx
+      if (!scope) return null
       const usable = (svc) => !!svc && typeof svc.pickDirectory === 'function'
       try {
-        if (usable(ctx.uiWorkspace)) return ctx.uiWorkspace
+        if (usable(scope.uiWorkspace)) return scope.uiWorkspace
       } catch {
         /* not declared in this scope; the scoped inject below may still land */
       }
       try {
-        if (typeof ctx.get === 'function') {
-          const viaGet = ctx.get('uiWorkspace')
+        if (typeof scope.get === 'function') {
+          const viaGet = scope.get('uiWorkspace')
           if (usable(viaGet)) return viaGet
         }
       } catch {
@@ -738,7 +751,7 @@ window.__ModuleLoader__.load({
       try {
         // The root context carries every service, so this is the one lookup that
         // does not depend on what this plugin happened to declare.
-        const root = ctx.root
+        const root = scope.root
         if (root && usable(root.uiWorkspace)) return root.uiWorkspace
       } catch {
         /* same */
@@ -753,14 +766,47 @@ window.__ModuleLoader__.load({
      * @returns {Promise<{ok: boolean, path?: string, cancelled?: boolean}>}
      */
     async function pickFolderNative() {
-      if (!folderPicker) return { ok: false }
+      const reasons = []
+      // The host's own chooser first, and by action rather than through
+      // `uiWorkspace`. That facade resolves only for a plugin whose cordis
+      // inject lists it, and a failed lookup there is indistinguishable from a
+      // host that has no chooser, which is how a pick that never opened came
+      // back with no reason at all. Asked by action, the chooser answers in
+      // its own words and every failure below keeps them.
       try {
-        const path = await folderPicker.pickDirectory()
-        if (!path) return { ok: false, cancelled: true }
-        return { ok: true, path }
-      } catch {
-        return { ok: false }
+        const res = await apiPost({ action: 'pickFolder' }, 300000)
+        if (res && res.ok === true) {
+          return res.path ? { ok: true, path: res.path } : { ok: false, cancelled: true }
+        }
+        if (res && res.error) reasons.push(String(res.error))
+      } catch (e) {
+        reasons.push(String(e && e.message ? e.message : e))
       }
+      const svc = folderPicker || resolveFolderPicker(clientCtx)
+      if (svc) {
+        try {
+          const path = await svc.pickDirectory()
+          if (!path) return { ok: false, cancelled: true }
+          return { ok: true, path }
+        } catch (e) {
+          reasons.push(String(e && e.message ? e.message : e))
+        }
+      } else {
+        reasons.push('the browser half never resolved uiWorkspace')
+      }
+      return { ok: false, reason: reasons.filter(Boolean).join(' / ') }
+    }
+
+    /**
+     * The one-line reason a pick fell back, for the note under the fallback
+     * browser. Naming the cause is the difference between "this host has no
+     * chooser" and "the chooser refused", and only one of those is true.
+     * @param {{reason?: string}} got - the pick outcome.
+     * @returns {string} the note to show.
+     */
+    function pickFallbackNote(got) {
+      const base = t('pick.noNative')
+      return got && got.reason ? `${base}: ${got.reason}` : base
     }
 
     function normalizeSrc(src) {
@@ -1928,7 +1974,7 @@ window.__ModuleLoader__.load({
           return
         }
         if (got.cancelled) return
-        setPickDirNote(t('pick.noNative'))
+        setPickDirNote(pickFallbackNote(got))
         setPickDir(true)
       }, [changeDir])
 
@@ -2125,6 +2171,9 @@ window.__ModuleLoader__.load({
      */
     function BrowseModal({ initialPath, onPick, onClose, dirMode, notice }) {
       const [dir, setDir] = useState(null)
+      const [parentDir, setParentDir] = useState(null)
+      const [drivesView, setDrivesView] = useState(false)
+      const [typed, setTyped] = useState('')
       const [entries, setEntries] = useState([])
       const [error, setError] = useState(null)
       const [loading, setLoading] = useState(true)
@@ -2135,7 +2184,18 @@ window.__ModuleLoader__.load({
         setError(null)
         try {
           const data = await listDir(target)
-          setDir(data.dir || target || '')
+          // The drive list is a view, not a folder: there is no path to offer
+          // and nothing above it, and clearing the box is what asks for it
+          // again. Without this the browser could not leave the disk the card
+          // directory happens to sit on.
+          const at = data.dir || target || ''
+          const onDrives = !!data.drives || at === '::drives'
+          setDir(onDrives ? '' : at)
+          setDrivesView(onDrives)
+          setTyped(onDrives ? '' : at)
+          // The parent comes from the host, which knows that a drive root's
+          // parent is the drive list rather than a folder one level up.
+          setParentDir(data.parent || null)
           setEntries(Array.isArray(data.entries) ? data.entries : [])
           if (data.error) setError(data.error)
         } catch (e) {
@@ -2159,10 +2219,10 @@ window.__ModuleLoader__.load({
       }, [onClose])
 
       const current = dir || ''
-      const parent = current.replace(/[\\/][^\\/]*$/, '')
       // Files are noise when the answer is a folder, and the folder you are
-      // standing in is as much a choice as anything below it.
-      const visible = dirMode ? entries.filter((it) => it.type === 'directory') : entries
+      // standing in is as much a choice as anything below it. A drive root is
+      // a folder for that purpose, so both views keep it.
+      const visible = dirMode ? entries.filter((it) => it.type !== 'file') : entries
 
       /**
        * Hand the current folder to the system file manager. The in-panel browser
@@ -2216,8 +2276,18 @@ window.__ModuleLoader__.load({
               : null,
             h(
               'button',
-              { type: 'button', className: 'dcu-btn tiny', disabled: !parent, onClick: () => go(parent) },
+              {
+                type: 'button',
+                className: 'dcu-btn tiny',
+                disabled: !parentDir,
+                onClick: () => go(parentDir),
+              },
               t('pick.up'),
+            ),
+            h(
+              'button',
+              { type: 'button', className: 'dcu-btn tiny', onClick: () => go('') },
+              t('pick.drives'),
             ),
             h(
               'button',
@@ -2231,7 +2301,13 @@ window.__ModuleLoader__.load({
             ),
             h(
               'button',
-              { type: 'button', className: 'dcu-btn tiny ghost', onClick: () => go(null) },
+              {
+                type: 'button',
+                className: 'dcu-btn tiny ghost',
+                // Reloading the drive list means asking for it again, and
+                // `null` is exactly that request; a folder reloads itself.
+                onClick: () => go(drivesView ? null : current),
+              },
               t('btn.reload'),
             ),
             h('button', { type: 'button', className: 'dcu-btn tiny ghost', onClick: onClose }, t('btn.close')),
@@ -2239,7 +2315,30 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'dcu-sheet-body' },
-            h('div', { className: 'dcu-sub' }, current),
+            h('div', { className: 'dcu-sub' }, current || t('pick.drives')),
+            // A typed path is the one route that always works: drilling down
+            // twenty levels to reach a folder on another disk is not a way to
+            // pick a backup folder, and the box takes what a copied path is.
+            h(
+              'div',
+              { className: 'dcu-row', style: { gap: 6, padding: '4px 0' } },
+              h('input', {
+                className: 'dcu-input dcu-grow',
+                type: 'text',
+                value: typed,
+                spellCheck: false,
+                placeholder: t('pick.placeholder'),
+                onChange: (ev) => setTyped(ev.target.value),
+                onKeyDown: (ev) => {
+                  if (ev.key === 'Enter') go(typed)
+                },
+              }),
+              h(
+                'button',
+                { type: 'button', className: 'dcu-btn tiny', onClick: () => go(typed) },
+                t('pick.go'),
+              ),
+            ),
             // Said out loud rather than left as a mystery: the operator asked for
             // a folder and got a browser instead, and that needs a reason.
             notice
@@ -2266,20 +2365,24 @@ window.__ModuleLoader__.load({
                       h(
                         'span',
                         { className: 'dcu-chip' },
-                        item.type === 'directory' ? t('pick.dir') : t('pick.file'),
+                        item.type === 'drive'
+                          ? t('pick.drive')
+                          : item.type === 'directory'
+                            ? t('pick.dir')
+                            : t('pick.file'),
                       ),
                       h(
                         'span',
                         {
                           className: 'dcu-sub dcu-grow',
-                          style: { cursor: item.type === 'directory' ? 'pointer' : 'default' },
+                          style: { cursor: item.type === 'file' ? 'default' : 'pointer' },
                           onClick: () => {
-                            if (item.type === 'directory') go(item.path)
+                            if (item.type !== 'file') go(item.path)
                           },
                         },
                         item.name,
                       ),
-                      item.type === 'directory'
+                      item.type !== 'file'
                         ? h(
                             Fragment,
                             null,
@@ -2845,7 +2948,7 @@ window.__ModuleLoader__.load({
           return
         }
         if (got.cancelled) return
-        setPickBackupNote(t('pick.noNative'))
+        setPickBackupNote(pickFallbackNote(got))
         setPickBackup(true)
       }, [changeBackupDir])
 
@@ -3320,6 +3423,7 @@ window.__ModuleLoader__.load({
       ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-card-updater: dictionary')
       // The chooser is optional. A build without one falls back to the panel's
       // own browser, so a missing service must not keep the plugin off the page.
+      clientCtx = ctx
       folderPicker = resolveFolderPicker(ctx)
       if (!folderPicker && typeof ctx.inject === 'function') {
         try {
