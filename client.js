@@ -40,6 +40,9 @@ window.__ModuleLoader__.load({
       'backup.note':
         '每次写入前自动备份，每个文件保留最近 {perFile} 份、全部上限 {total} 份，超出自动清理；想立刻清掉旧的就打开目录手动删。',
       'backup.open': '打开备份目录',
+      'backup.dir': '备份目录',
+      'backup.choose': '选择备份目录',
+      'backup.default': '改回默认目录',
       'merge.fields': '更新了 {what}',
       'merge.fieldsKept': '保留了 MVU 版自己的 {what}（里面是状态栏代码，换成原版会让状态栏失效）',
       'merge.scriptsKept': '原版有 {n} 条脚本没有自动加入（多是旧式状态栏或界面规则），需要时请在卡片工作台手动添加',
@@ -72,6 +75,8 @@ window.__ModuleLoader__.load({
       'ext.depth_prompt': '深度提示',
       'ext.xiaobaix-template': '小白模板',
       'ok.manualBackup': '已手动备份全部卡片',
+      'ok.backupDir': '备份目录已改',
+      'ok.backupDirMoved': '备份目录已改，搬过来 {moved} 份旧备份',
       'btn.close': '关闭',
       'btn.reload': '重新载入',
       'btn.reload.hint': '重新读取后台状态；未保存的改动会被丢弃',
@@ -213,6 +218,8 @@ window.__ModuleLoader__.load({
       'pick.dir': '目录',
       'pick.file': '文件',
       'pick.empty': '该目录下没有 JSON 文件',
+      'pick.useDir': '用这个目录',
+      'pick.emptyDir': '该目录下没有子目录',
       'pick.choose': '选择此文件',
       'err.list': '读取目录失败',
       'restore.title': '还原到某个备份',
@@ -276,6 +283,9 @@ window.__ModuleLoader__.load({
       'backup.note':
         'A snapshot is taken before every write: the newest {perFile} per card are kept, {total} in total, and older ones are pruned. To clear them sooner, open the folder and delete them.',
       'backup.open': 'open backup folder',
+      'backup.dir': 'Backup folder',
+      'backup.choose': 'Choose folder',
+      'backup.default': 'Use the default folder',
       'merge.fields': 'Updated {what}',
       'merge.fieldsKept': "Kept the MVU copy's own {what} (it carries status-bar code)",
       'merge.scriptsKept': '{n} author scripts were not added (mostly legacy status-bar or UI rules); add them by hand if you need them',
@@ -308,6 +318,8 @@ window.__ModuleLoader__.load({
       'ext.depth_prompt': 'depth prompt',
       'ext.xiaobaix-template': 'xiaobaix template',
       'ok.manualBackup': 'All cards backed up manually',
+      'ok.backupDir': 'Backup folder changed',
+      'ok.backupDirMoved': 'Backup folder changed; {moved} old snapshots moved across',
       'btn.close': 'Close',
       'btn.reload': 'Reload',
       'btn.reload.hint': 'Re-read the host state; unsaved edits are dropped',
@@ -450,6 +462,8 @@ window.__ModuleLoader__.load({
       'pick.dir': 'dir',
       'pick.file': 'file',
       'pick.empty': 'No JSON file in this directory',
+      'pick.useDir': 'Use this folder',
+      'pick.emptyDir': 'No subfolder in this directory',
       'pick.choose': 'Choose',
       'err.list': 'Directory read failed',
       'restore.title': 'Restore a backup',
@@ -1735,6 +1749,7 @@ window.__ModuleLoader__.load({
       const [error, setError] = useState(null)
       const [notice, setNotice] = useState(null)
       const [opened, setOpened] = useState(() => new Set())
+      const [pickDir, setPickDir] = useState(false)
       const u = useUpdater()
 
       const toggleGroup = useCallback((file) => {
@@ -1800,6 +1815,47 @@ window.__ModuleLoader__.load({
         [load, u],
       )
 
+      /**
+       * Move the snapshot folder.
+       *
+       * Existing snapshots are carried across: this list is the only way back to
+       * a card the merge got wrong, and leaving them in the old folder would
+       * read as having lost every one of them.
+       */
+      const changeDir = useCallback(
+        async (dir) => {
+          setBusy(true)
+          setError(null)
+          setNotice(null)
+          try {
+            const res = await apiPost({ action: 'setBackupDir', dir, move: true })
+            if (res && res.ok === false) throw new Error(res.error || 'failed')
+            const done = (res && res.result) || {}
+            setNotice(
+              Number(done.moved)
+                ? t('ok.backupDirMoved').replace('{moved}', String(done.moved))
+                : t('ok.backupDir'),
+            )
+            await load()
+          } catch (e) {
+            setError(String(e && e.message ? e.message : e))
+          } finally {
+            setBusy(false)
+          }
+        },
+        [load],
+      )
+
+      const openDir = useCallback(async (dir) => {
+        if (!dir) return
+        try {
+          await revealFolder(dir)
+          setError(null)
+        } catch (e) {
+          setError(String(e && e.message ? e.message : e))
+        }
+      }, [])
+
       const items = data && Array.isArray(data.items) ? data.items.map(normalizeBackup) : []
 
       // One group per card file. The list arrives sorted newest first, so a
@@ -1859,7 +1915,45 @@ window.__ModuleLoader__.load({
                     .replace('{size}', formatSize(data.bytes)),
                 )
               : null,
-            data && data.dir ? h('div', { className: 'dcu-sub' }, `${t('restore.dir')}: ${data.dir}`) : null,
+            data && data.dir
+              ? h(
+                  'div',
+                  { className: 'dcu-row' },
+                  h('div', { className: 'dcu-sub dcu-grow' }, `${t('backup.dir')}: ${data.dir}`),
+                  h(
+                    'button',
+                    { type: 'button', className: 'dcu-btn tiny', disabled: busy, onClick: () => setPickDir(true) },
+                    t('backup.choose'),
+                  ),
+                  // Only worth offering when the folder has actually been moved:
+                  // a button that changes nothing reads as broken.
+                  data.defaultDir && data.dir !== data.defaultDir
+                    ? h(
+                        'button',
+                        {
+                          type: 'button',
+                          className: 'dcu-btn tiny ghost',
+                          disabled: busy,
+                          onClick: () => changeDir(''),
+                        },
+                        t('backup.default'),
+                      )
+                    : null,
+                  h(
+                    'button',
+                    { type: 'button', className: 'dcu-btn tiny ghost', onClick: () => openDir(data.dir) },
+                    t('backup.open'),
+                  ),
+                )
+              : null,
+            pickDir
+              ? h(BrowseModal, {
+                  dirMode: true,
+                  initialPath: data && data.dir,
+                  onPick: changeDir,
+                  onClose: () => setPickDir(false),
+                })
+              : null,
             notice ? h('div', { className: 'dcu-sub' }, '✓ ' + notice) : null,
             error ? h('div', { className: 'dcu-sub' }, '⚠ ' + error) : null,
             busy ? h('div', { className: 'dcu-sub' }, t('state.busy')) : null,
@@ -1946,8 +2040,13 @@ window.__ModuleLoader__.load({
      * Directory browser: the seat for picking a card file by hand when the
      * automatic pairing finds nothing. Reaches the host through the same
      * `/list` route, so it works in the browser too (no native dialog).
+     *
+     * `dirMode` flips it from "pick a file" to "pick this folder": only
+     * subfolders are listed, the folder currently open is itself an answer, and
+     * the sheet sits above the one that opened it. The backup folder is chosen
+     * here rather than by a second browser.
      */
-    function BrowseModal({ initialPath, onPick, onClose }) {
+    function BrowseModal({ initialPath, onPick, onClose, dirMode }) {
       const [dir, setDir] = useState(null)
       const [entries, setEntries] = useState([])
       const [error, setError] = useState(null)
@@ -1984,6 +2083,9 @@ window.__ModuleLoader__.load({
 
       const current = dir || ''
       const parent = current.replace(/[\\/][^\\/]*$/, '')
+      // Files are noise when the answer is a folder, and the folder you are
+      // standing in is as much a choice as anything below it.
+      const visible = dirMode ? entries.filter((it) => it.type === 'directory') : entries
 
       /**
        * Hand the current folder to the system file manager. The in-panel browser
@@ -2008,7 +2110,7 @@ window.__ModuleLoader__.load({
         'div',
         {
           className: 'dcu-overlay',
-          style: { zIndex: 120 },
+          style: { zIndex: dirMode ? 150 : 120 },
           onClick: (ev) => {
             if (ev.target === ev.currentTarget) onClose()
           },
@@ -2019,7 +2121,22 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'dcu-sheet-head' },
-            h('div', { className: 'dcu-title dcu-grow' }, t('pick.title')),
+            h('div', { className: 'dcu-title dcu-grow' }, dirMode ? t('backup.choose') : t('pick.title')),
+            dirMode
+              ? h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'dcu-btn tiny primary',
+                    disabled: !current,
+                    onClick: () => {
+                      onPick(current)
+                      onClose()
+                    },
+                  },
+                  t('pick.useDir'),
+                )
+              : null,
             h(
               'button',
               { type: 'button', className: 'dcu-btn tiny', disabled: !parent, onClick: () => go(parent) },
@@ -2055,8 +2172,8 @@ window.__ModuleLoader__.load({
               : null,
             loading
               ? h('div', { className: 'dcu-sub' }, t('state.busy'))
-              : entries.length
-                ? entries.map((item, idx) =>
+              : visible.length
+                ? visible.map((item, idx) =>
                     h(
                       'div',
                       { className: 'dcu-row', key: item.path || idx, style: { padding: '2px 0' } },
@@ -2078,9 +2195,27 @@ window.__ModuleLoader__.load({
                       ),
                       item.type === 'directory'
                         ? h(
-                            'button',
-                            { type: 'button', className: 'dcu-btn tiny ghost', onClick: () => go(item.path) },
-                            t('pick.dir'),
+                            Fragment,
+                            null,
+                            h(
+                              'button',
+                              { type: 'button', className: 'dcu-btn tiny ghost', onClick: () => go(item.path) },
+                              t('pick.dir'),
+                            ),
+                            dirMode
+                              ? h(
+                                  'button',
+                                  {
+                                    type: 'button',
+                                    className: 'dcu-btn tiny primary',
+                                    onClick: () => {
+                                      onPick(item.path)
+                                      onClose()
+                                    },
+                                  },
+                                  t('pick.choose'),
+                                )
+                              : null,
                           )
                         : h(
                             'button',
@@ -2096,7 +2231,7 @@ window.__ModuleLoader__.load({
                           ),
                     ),
                   )
-                : h('div', { className: 'dcu-sub' }, t('pick.empty')),
+                : h('div', { className: 'dcu-sub' }, t(dirMode ? 'pick.emptyDir' : 'pick.empty')),
           ),
         ),
       )
@@ -2307,6 +2442,7 @@ window.__ModuleLoader__.load({
       const [draft, setDraft] = useState(null)
       const [tab, setTab] = useState('cards')
       const [restore, setRestore] = useState(false)
+      const [pickBackup, setPickBackup] = useState(false)
       const [browse, setBrowse] = useState(null)
       const [query, setQuery] = useState('')
       const [filter, setFilter] = useState('all')
@@ -2596,6 +2732,21 @@ window.__ModuleLoader__.load({
         }
       }, [u.data])
 
+      /**
+       * Point snapshots somewhere else. The folder is written to the config by
+       * the host, which also carries the existing snapshots over, so this only
+       * has to report what happened.
+       */
+      const changeBackupDir = useCallback(
+        async (dir) => {
+          const res = await u.run('setBackupDir', { dir, move: true }, t('ok.backupDir'))
+          const moved = res && res.result ? Number(res.result.moved) || 0 : 0
+          if (moved) u.push(t('ok.backupDirMoved').replace('{moved}', String(moved)), 'ok')
+          return res
+        },
+        [u],
+      )
+
       /** Open the file browser in import mode for one card's original. */
       const pickImport = useCallback((entryId) => {
         setBrowse({ id: entryId, key: 'import', mode: 'import' })
@@ -2857,6 +3008,8 @@ window.__ModuleLoader__.load({
             t('backup.note').replace('{perFile}', '5').replace('{total}', '400'),
             ' ',
             h('span', { className: 'dcu-link', onClick: openBackups }, t('backup.open')),
+            ' · ',
+            h('span', { className: 'dcu-link', onClick: () => setPickBackup(true) }, t('backup.choose')),
           ),
           // Search and filtering sit below the view bar: they act on the card list
           // rather than on the panel, and only a long collection needs them.
@@ -2940,6 +3093,14 @@ window.__ModuleLoader__.load({
               })
             : null,
           restore ? h(RestoreModal, { onClose: () => setRestore(false) }) : null,
+          pickBackup
+            ? h(BrowseModal, {
+                dirMode: true,
+                initialPath: u.data && u.data.backupDir,
+                onPick: changeBackupDir,
+                onClose: () => setPickBackup(false),
+              })
+            : null,
         ),
       )
     }

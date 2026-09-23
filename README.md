@@ -17,7 +17,7 @@
 - **自己找原贴**：只填卡名也能工作。插件会用卡片自己的名字去社区索引站搜索，把找到的原贴链接自动填进来。**链接一旦配上就以链接为准**：作者改了贴子标题也不影响检测，因为贴子本身没变。
 - **导入新版**：下载好的新卡文件选进来，自动备份旧卡、写入新内容、记录导入时间。
 - **合并进 MVU 版**：把原版卡的新内容同步进 MVU 版，**永不覆盖** MVU 的状态栏脚本、变量定义与 `tavern_helper`。
-- **备份与还原**：每次写入前自动备份，按卡片分组查看，随时回滚到任意一份。
+- **备份与还原**：每次写入前自动备份，按卡片分组查看，随时回滚到任意一份；**备份目录可以自己选**，换目录时旧目录里的快照自动搬过去。
 - **检测插件更新**：面板右上角标着当前安装的版本号，每次打开面板都会自动查一次 GitHub。没新版显示「已是最新版」；有新版变成「发现新版 v1.3.0」，点一下直接打开更新页。版本号读的是插件自己的 `package.json`，`git pull` 之后会自己跟着变。
 
 ## 界面
@@ -324,12 +324,16 @@ localStorage.getItem("auth_token")
 | --- | --- |
 | `profile-data/<profile>/data/tools/card-updater/config.json` | 卡片配对、链接、基线签名、策略开关、索引站令牌 |
 | `profile-data/<profile>/data/tools/card-updater/state.json` | 最近一次检测报告 |
-| `profile-data/<profile>/data/tools/card-updater/backups/` | 每次写入前的自动备份 |
+| `profile-data/<profile>/data/tools/card-updater/backups/` | 每次写入前的自动备份（默认位置，可在面板里改） |
 | `profile-data/<profile>/data/tools/card-updater/` | 配置、检测报告与备份 |
 
 卡片目录固定为 `profile-data/<profile>/data/resources/cards`。
 
 备份保留策略：每张卡文件保留最近 **5** 份，每个标签（导入 / 合并 / 手动 / 还原前）另各留最新 1 份，总量上限 **400** 份。
+
+**备份目录可以自己选。** 打开「还原」面板，目录那行有「选择备份目录」；换完之后旧目录里的快照会自动搬到新目录（同名冲突的保留原来的那份）。想改回来点「改回默认目录」。备份目录不能选在卡片目录里面，否则备份文件会被当成人物卡。
+
+自动清理只认本插件自己写的快照文件名（`<毫秒>__<标签>__<卡文件名>.json`）。所以就算把备份目录指到一个放满别的 JSON 的文件夹，清理也不会碰它们；搬目录时同样只搬自己的快照。
 
 自动清理覆盖的是常规情况。想立刻把旧的清掉，点工具栏下方那句提示末尾的「打开备份目录」，手动删文件即可 —— 这些是普通快照文件，删掉不影响插件运行，只是失去对应的回滚点。
 
@@ -395,7 +399,7 @@ client.js      浏览器端：面板、设置区、侧栏入口
 - `GET  /dsh-card-updater/state` — 配置与最近报告
 - `GET  /dsh-card-updater/list` — 目录浏览
 - `GET  /dsh-card-updater/avatar` — 卡片头像
-- `POST /dsh-card-updater/action` — 所有操作，取值为 `check` / `importPlain` / `merge` / `updateAndMerge` / `save` / `suggest` / `backupList` / `restoreBackup` / `deleteBackup` / `manualBackup` / `prune` / `verifyIndex` / `openFolder` / `checkUpdate` / `selfcheck` 等
+- `POST /dsh-card-updater/action` — 所有操作，取值为 `check` / `importPlain` / `merge` / `updateAndMerge` / `save` / `suggest` / `backupList` / `restoreBackup` / `deleteBackup` / `manualBackup` / `prune` / `setBackupDir` / `verifyIndex` / `openFolder` / `checkUpdate` / `selfcheck` 等
 
 改了 `lib/index.js` 需要重启 DSH；只改 `client.js` 刷新页面即可。
 
