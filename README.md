@@ -383,7 +383,7 @@ localStorage.getItem("auth_token")
 
 **提示令牌已过期**：索引站的令牌有效期约 7 天，过期后检索贴子会返回 401。刷新方式见上面「索引站授权」一节：**先退出登录**，再用 Discord 重新登录一次，然后重新取。注意浏览器里看着还登录着是正常的，登录态靠 cookie，令牌是另一条凭据，两者不会互相刷新。
 
-**macOS / Linux 上和 Windows 有什么不一样**：只剩一处。打开目录交给系统自己的文件管理器，macOS 用 `open`，Linux 用 `xdg-open`，Windows 用 `explorer.exe`。插件不执行任何其他外部程序。
+**macOS / Linux 上和 Windows 有什么不一样**：打开目录这一处。macOS 用 `open`，Linux 用 `xdg-open`，Windows 用 `cmd.exe /c start`。Windows 上不能直接 `explorer.exe <目录>`：那样打开的窗口不会显示（实测一个备份目录堆了 31 个同名窗口、全部不可见，按钮看起来就是"没反应"），`start` 才是把路径交给 shell 的正确方式。
 
 ## 开发
 
@@ -407,7 +407,7 @@ client.js      浏览器端：面板、设置区、侧栏入口
 
 宿主端只用 Node 内置模块，没有第三方依赖，路径一律走 `node:path`。DSH 主目录取 `DSH_HOME`，没设时用 `~/.dsh`，三个平台解析到同一个位置。需要跟随平台的地方各有分支：
 
-- 打开文件夹：`explorer.exe` / `open` / `xdg-open`
+- 打开文件夹：`open` / `xdg-open` / Windows 上的 `cmd.exe /c start`（不能直接调 `explorer.exe`，那样打开的窗口不显示）
 - 安装卸载：标准方式是 `dsh plugin --profile <name> add / remove`，跨平台通用；另外随附 PowerShell 与 POSIX 脚本各一套作为备选
 
 ### 不要给 package.json 加 BOM
