@@ -3210,7 +3210,11 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'dcu-sub', style: { marginTop: 4 } },
-            t('backup.note').replace('{perFile}', '5').replace('{total}', '400'),
+            // Retention comes from the host rather than from this sentence, so
+            // raising the ceiling is one edit in one place.
+            t('backup.note')
+              .replace('{perFile}', String((u.data && u.data.keepPerFile) || 5))
+              .replace('{total}', String((u.data && u.data.keepTotal) || 1000)),
             ' ',
             h('span', { className: 'dcu-link', onClick: openBackups }, t('backup.open')),
             ' · ',
