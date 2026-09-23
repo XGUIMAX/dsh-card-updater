@@ -703,6 +703,64 @@ window.__ModuleLoader__.load({
       return res
     }
 
+    /**
+     * DSH's own folder chooser, when this build has one.
+     *
+     * The desktop app's native "选择文件夹" dialog and DSH's in-app browser both
+     * sit behind `uiWorkspace.pickDirectory`, the same seam DSH uses for its own
+     * folder pickers. Reaching for it means the operator gets the chooser they
+     * already know, and gets a path back instead of a file manager window that
+     * cannot answer the question they opened it for.
+     */
+    let folderPicker = null
+
+    /**
+     * @param {object} ctx - the client plugin context.
+     * @returns {object|null} the service, when it can pick folders.
+     */
+    function resolveFolderPicker(ctx) {
+      const usable = (svc) => !!svc && typeof svc.pickDirectory === 'function'
+      try {
+        if (usable(ctx.uiWorkspace)) return ctx.uiWorkspace
+      } catch {
+        /* not declared in this scope; the scoped inject below may still land */
+      }
+      try {
+        if (typeof ctx.get === 'function') {
+          const viaGet = ctx.get('uiWorkspace')
+          if (usable(viaGet)) return viaGet
+        }
+      } catch {
+        /* same */
+      }
+      try {
+        // The root context carries every service, so this is the one lookup that
+        // does not depend on what this plugin happened to declare.
+        const root = ctx.root
+        if (root && usable(root.uiWorkspace)) return root.uiWorkspace
+      } catch {
+        /* same */
+      }
+      return null
+    }
+
+    /**
+     * Run the chooser and say which of three things happened, because "no path"
+     * and "no chooser here" want different answers: a build without one still
+     * has the panel's own browser.
+     * @returns {Promise<{ok: boolean, path?: string, cancelled?: boolean}>}
+     */
+    async function pickFolderNative() {
+      if (!folderPicker) return { ok: false }
+      try {
+        const path = await folderPicker.pickDirectory()
+        if (!path) return { ok: false, cancelled: true }
+        return { ok: true, path }
+      } catch {
+        return { ok: false }
+      }
+    }
+
     function normalizeSrc(src) {
       if (!src) return null
       if (typeof src === 'string') return src || null
@@ -1856,6 +1914,20 @@ window.__ModuleLoader__.load({
         }
       }, [])
 
+      /**
+       * Ask for the folder: DSH's chooser when this build has one, the panel's
+       * own browser when it does not.
+       */
+      const chooseDir = useCallback(async () => {
+        const got = await pickFolderNative()
+        if (got.ok) {
+          await changeDir(got.path)
+          return
+        }
+        if (got.cancelled) return
+        setPickDir(true)
+      }, [changeDir])
+
       const items = data && Array.isArray(data.items) ? data.items.map(normalizeBackup) : []
 
       // One group per card file. The list arrives sorted newest first, so a
@@ -1922,7 +1994,7 @@ window.__ModuleLoader__.load({
                   h('div', { className: 'dcu-sub dcu-grow' }, `${t('backup.dir')}: ${data.dir}`),
                   h(
                     'button',
-                    { type: 'button', className: 'dcu-btn tiny', disabled: busy, onClick: () => setPickDir(true) },
+                    { type: 'button', className: 'dcu-btn tiny', disabled: busy, onClick: chooseDir },
                     t('backup.choose'),
                   ),
                   // Only worth offering when the folder has actually been moved:
@@ -2747,6 +2819,20 @@ window.__ModuleLoader__.load({
         [u],
       )
 
+      /**
+       * Ask for the folder: DSH's chooser when this build has one, the panel's
+       * own browser when it does not.
+       */
+      const chooseBackupDir = useCallback(async () => {
+        const got = await pickFolderNative()
+        if (got.ok) {
+          await changeBackupDir(got.path)
+          return
+        }
+        if (got.cancelled) return
+        setPickBackup(true)
+      }, [changeBackupDir])
+
       /** Open the file browser in import mode for one card's original. */
       const pickImport = useCallback((entryId) => {
         setBrowse({ id: entryId, key: 'import', mode: 'import' })
@@ -3009,7 +3095,7 @@ window.__ModuleLoader__.load({
             ' ',
             h('span', { className: 'dcu-link', onClick: openBackups }, t('backup.open')),
             ' · ',
-            h('span', { className: 'dcu-link', onClick: () => setPickBackup(true) }, t('backup.choose')),
+            h('span', { className: 'dcu-link', onClick: chooseBackupDir }, t('backup.choose')),
           ),
           // Search and filtering sit below the view bar: they act on the card list
           // rather than on the panel, and only a long collection needs them.
@@ -3215,6 +3301,19 @@ window.__ModuleLoader__.load({
 
     function apply(ctx) {
       ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-card-updater: dictionary')
+      // The chooser is optional. A build without one falls back to the panel's
+      // own browser, so a missing service must not keep the plugin off the page.
+      folderPicker = resolveFolderPicker(ctx)
+      if (!folderPicker && typeof ctx.inject === 'function') {
+        try {
+          ctx.inject(['uiWorkspace'], (scoped) => {
+            const svc = scoped && scoped.uiWorkspace
+            if (svc && typeof svc.pickDirectory === 'function') folderPicker = svc
+          })
+        } catch {
+          /* the in-panel browser is the fallback */
+        }
+      }
       const bound = ctx.locale.bind(NS)
       translate = (key) => {
         try {
