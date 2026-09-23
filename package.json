@@ -1,6 +1,6 @@
 {
   "name": "dsh-card-updater",
-  "version": "1.43.0",
+  "version": "1.44.0",
   "description": "DSH Tavern 卡片更新器：按链接检测人物卡更新、更新原版卡，并把变更合并进 MVU 版卡。Card updater for DSH Tavern: diff remote cards by link, refresh the original, and merge into the MVU variant.",
   "type": "module",
   "main": "lib/index.js",
