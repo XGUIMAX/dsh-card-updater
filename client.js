@@ -533,7 +533,11 @@ window.__ModuleLoader__.load({
       '.dcu-link:hover{opacity:.75}',
       '.dcu-input{height:28px;border-radius:7px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-size:12px;padding:0 10px;width:100%;box-sizing:border-box;min-width:0}',
       '.dcu-input:focus{outline:none;border-color:var(--dsw-alias-brand-primary)}',
-      '.dcu-avatar{flex:0 0 auto;width:48px;height:48px;border-radius:10px;overflow:hidden;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1)}',
+      // Every edge is pinned, not just `width`/`height`. A thumbnail is a
+      // replaced element whose box is decided by two competing sets of rules,
+      // and a single override on either axis is enough to turn a square
+      // portrait into a wide sliver. `min`/`max` leave no axis to override.
+      '.dcu-avatar{flex:0 0 auto;width:48px;height:48px;min-width:48px;max-width:48px;min-height:48px;max-height:48px;border-radius:10px;overflow:hidden;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1)}',
       '.dcu-avatar img{width:100%;height:100%;object-fit:cover;display:block}',
       '.dcu-item{border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);padding:14px;display:flex;flex-direction:column;gap:10px}',
       '.dcu-item.on{border-color:var(--dsw-alias-state-warn-primary)}',
@@ -541,7 +545,16 @@ window.__ModuleLoader__.load({
       // what a check found, then what can be done about it. Actions used to share
       // the title line, where five buttons could not fit and broke onto a second
       // row at a different place on every card.
-      '.dcu-head{display:flex;align-items:flex-start;gap:10px}',
+      // The head row is where the card is identified, so the name column must
+      // never be the thing that gives way. It is the only child here that can
+      // shrink (`min-width:0`), which made it the only thing the browser could
+      // take space from: with a long MVU file name as the subtitle, and a debug
+      // column allowed to claim up to 54%, the column collapsed to roughly one
+      // character per line and the card read as a vertical smear. The row now
+      // wraps and the column keeps a floor, so the debug column and the state
+      // chip move to their own line instead of eating the name.
+      '.dcu-head{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;row-gap:8px}',
+      '.dcu-head>.dcu-grow{flex:1 1 220px;min-width:180px}',
       '.dcu-fields{display:flex;flex-direction:column;gap:7px}',
       '.dcu-actions{display:flex;align-items:center;gap:6px;justify-content:flex-end;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--dsw-alias-border-l1)}',
       // A per-card result sits at the left of that card's own action row. The
@@ -1234,19 +1247,32 @@ window.__ModuleLoader__.load({
       return t('strategy.standard')
     }
 
-    function useStyles() {
-      useEffect(() => {
+    /**
+     * Put the current stylesheet in the document, and leave exactly one copy.
+     *
+     * The panel mounts in two places (the settings section and the sidebar
+     * sheet), so two mounts used to mean two tags. Which one won was decided by
+     * document order, not by recency: with equal specificity the later tag wins
+     * every property, so a page that had mounted the sheet before the settings
+     * section could end up rendering under an older revision of this very file.
+     * Clearing the keyed tags first makes the tag this call appends the newest
+     * one, which is the only revision that should ever be in effect.
+     */
+    function installStyles() {
+      try {
+        for (const old of Array.from(document.querySelectorAll('style[data-dsh-card-updater]'))) old.remove()
         const tag = document.createElement('style')
         tag.setAttribute('data-dsh-card-updater', '1')
         tag.textContent = CSS
         document.head.appendChild(tag)
-        return () => {
-          try {
-            tag.remove()
-          } catch {
-            /* ignore */
-          }
-        }
+      } catch {
+        /* A document without a head is not a reason to fail the render. */
+      }
+    }
+
+    function useStyles() {
+      useEffect(() => {
+        installStyles()
       }, [])
     }
 
