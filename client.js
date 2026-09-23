@@ -590,10 +590,15 @@ window.__ModuleLoader__.load({
       // Sidebar-foot entry. A shipped-shaped row while the sidebar is wide and
       // a 36px icon button in the rail. Geometry is the shell's: this file only
       // supplies the button, and it never measures or moves neighbouring rows.
-      // The wide-state box copies the shipped rows' math (width calc(100% + 4px)
-      // with margin 4px -2px), so this row is the same width as its neighbours
-      // instead of sitting 2px narrower on either side.
-      '.dcu-entry{display:flex;align-items:center;gap:8px;width:calc(100% + 4px);height:42px;box-sizing:border-box;margin:4px -2px;padding:0 10px 0 8px;border:0;border-radius:12px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;cursor:pointer;text-align:left;flex:none}',
+      //
+      // The row fills its seat rather than overflowing it. An earlier revision
+      // copied the shipped rows' math here — `calc(100% + 4px)` with a `-2px`
+      // margin, a fixed 2px nudge on each side — which measures correctly in the
+      // browser and sits visibly off in the desktop shell, because that 2px is a
+      // constant while the seat's width is not. Filling the seat needs no such
+      // constant, and `dsh-sidebar-foot-fix` pins the neighbouring rows to the
+      // same rule so all three share one axis in either shell.
+      '.dcu-entry{display:flex;align-items:center;gap:8px;width:100%;height:42px;box-sizing:border-box;margin:4px 0;padding:0 10px 0 8px;border:0;border-radius:12px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;cursor:pointer;text-align:left;flex:none}',
       '.dcu-entry:hover{background:var(--dsw-alias-interactive-bg-hover)}',
       '.dcu-entry:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}',
       '.dcu-entry[data-wide="false"]{width:36px;height:36px;margin:0;padding:0;gap:0;justify-content:center;border-radius:50%;flex:0 0 auto}',
