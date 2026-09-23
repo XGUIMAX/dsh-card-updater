@@ -220,6 +220,7 @@ window.__ModuleLoader__.load({
       'pick.empty': '该目录下没有 JSON 文件',
       'pick.useDir': '用这个目录',
       'pick.emptyDir': '该目录下没有子目录',
+      'pick.noNative': '这个宿主没有装系统目录选择器，已退回面板内的浏览器',
       'pick.choose': '选择此文件',
       'err.list': '读取目录失败',
       'restore.title': '还原到某个备份',
@@ -464,6 +465,7 @@ window.__ModuleLoader__.load({
       'pick.empty': 'No JSON file in this directory',
       'pick.useDir': 'Use this folder',
       'pick.emptyDir': 'No subfolder in this directory',
+      'pick.noNative': 'This host has no system folder chooser, so the panel browser is used',
       'pick.choose': 'Choose',
       'err.list': 'Directory read failed',
       'restore.title': 'Restore a backup',
@@ -1808,6 +1810,7 @@ window.__ModuleLoader__.load({
       const [notice, setNotice] = useState(null)
       const [opened, setOpened] = useState(() => new Set())
       const [pickDir, setPickDir] = useState(false)
+      const [pickDirNote, setPickDirNote] = useState('')
       const u = useUpdater()
 
       const toggleGroup = useCallback((file) => {
@@ -1925,6 +1928,7 @@ window.__ModuleLoader__.load({
           return
         }
         if (got.cancelled) return
+        setPickDirNote(t('pick.noNative'))
         setPickDir(true)
       }, [changeDir])
 
@@ -2021,6 +2025,7 @@ window.__ModuleLoader__.load({
             pickDir
               ? h(BrowseModal, {
                   dirMode: true,
+                  notice: pickDirNote,
                   initialPath: data && data.dir,
                   onPick: changeDir,
                   onClose: () => setPickDir(false),
@@ -2118,7 +2123,7 @@ window.__ModuleLoader__.load({
      * the sheet sits above the one that opened it. The backup folder is chosen
      * here rather than by a second browser.
      */
-    function BrowseModal({ initialPath, onPick, onClose, dirMode }) {
+    function BrowseModal({ initialPath, onPick, onClose, dirMode, notice }) {
       const [dir, setDir] = useState(null)
       const [entries, setEntries] = useState([])
       const [error, setError] = useState(null)
@@ -2235,6 +2240,15 @@ window.__ModuleLoader__.load({
             'div',
             { className: 'dcu-sheet-body' },
             h('div', { className: 'dcu-sub' }, current),
+            // Said out loud rather than left as a mystery: the operator asked for
+            // a folder and got a browser instead, and that needs a reason.
+            notice
+              ? h(
+                  'div',
+                  { className: 'dcu-sub', style: { color: 'var(--dsw-alias-state-warn-primary)' } },
+                  notice,
+                )
+              : null,
             error
               ? h(
                   'div',
@@ -2515,6 +2529,7 @@ window.__ModuleLoader__.load({
       const [tab, setTab] = useState('cards')
       const [restore, setRestore] = useState(false)
       const [pickBackup, setPickBackup] = useState(false)
+      const [pickBackupNote, setPickBackupNote] = useState('')
       const [browse, setBrowse] = useState(null)
       const [query, setQuery] = useState('')
       const [filter, setFilter] = useState('all')
@@ -2830,6 +2845,7 @@ window.__ModuleLoader__.load({
           return
         }
         if (got.cancelled) return
+        setPickBackupNote(t('pick.noNative'))
         setPickBackup(true)
       }, [changeBackupDir])
 
@@ -3182,6 +3198,7 @@ window.__ModuleLoader__.load({
           pickBackup
             ? h(BrowseModal, {
                 dirMode: true,
+                notice: pickBackupNote,
                 initialPath: u.data && u.data.backupDir,
                 onPick: changeBackupDir,
                 onClose: () => setPickBackup(false),
@@ -3354,6 +3371,12 @@ window.__ModuleLoader__.load({
       )
     }
 
-    return { name: 'dsh-card-updater', inject: ['slots', 'locale'], apply }
+    // `uiWorkspace` is declared, not looked up at runtime: cordis resolves only
+    // what a plugin injects, so a service reached for by name resolves to
+    // nothing and the folder chooser silently falls back to the panel's own
+    // browser. The window it exposes is the folder chooser this panel wants, and
+    // the client UI ships it, which is the same dependency the shipped
+    // directory-picker plugin declares.
+    return { name: 'dsh-card-updater', inject: ['slots', 'locale', 'uiWorkspace'], apply }
   },
 })
