@@ -312,6 +312,80 @@ const report = createReport('dsh-card-updater host')
   report.eq('suggestConfig: a rescan does not duplicate entries', rescan.cards.length, 2)
 }
 
+/* ---------------------------------------------------------- search terms */
+
+{
+  report.group('search terms')
+  const sb = sandbox('terms')
+  const host = loadHost(sb.home)
+
+  // The card this was written for. Its file is named after a piece of the thread
+  // title, and the name printed inside the card shares no characters with that
+  // title at all, so searching the card's own name finds nothing.
+  const label = '来当小男友爆管人的米吧！'
+  const cardFile = path.join(sb.cards, `${label}.json`)
+  writeJson(cardFile, v2Card({ name: '独占配信中v1.2' }))
+  const entry = host.normalizeCfg({ cards: [{ id: 'a', label, plain: { path: cardFile } }] }).cards[0]
+
+  const terms = host.searchTermsOf(entry)
+  report.eq('the name inside the card is offered first', terms[0], '独占配信中')
+  report.ok(
+    'the file name is offered as well',
+    terms.includes('来当小男友爆管人的米吧'),
+    JSON.stringify(terms),
+  )
+  report.eq('a repeated name is offered once', terms.length, new Set(terms).size)
+  report.eq('searchTermOf still answers with one term', host.searchTermOf(entry), '独占配信中')
+  report.eq('the trailing exclamation is trimmed', host.tidyTerm(label), '来当小男友爆管人的米吧')
+
+  const thread = [
+    '【🏆管人调制】9.12更新创意工坊和半裸游乐园/新角色投票中⭐来当小男友爆管人的米吧！为了交房租只能把主播变成专属宠物了！',
+    '大量色图/都市生活/拟真直播间/CG收集/部位开发/虚幻杯/二次元同人杯',
+    '版本 5.3',
+  ].join('\n')
+
+  report.eq('the name inside the card is nowhere on the page', host.scopeText(thread, '独占配信中'), '')
+  const byFile = host.scopeText(thread, '来当小男友爆管人的米吧')
+  // The window runs from the keyword, so the thread's own prefix is behind it;
+  // what has to be inside is this card's release notes.
+  report.ok('the file name is, and locates the post', byFile.includes('为了交房租'), byFile.slice(0, 60))
+  report.eq('so the version is reachable by trying the names in order', host.extractVersion(byFile), '5.3')
+
+  // A marker the user typed outranks everything, and the rest still follow it.
+  const typed = host.normalizeCfg({
+    cards: [{ id: 'b', label, plain: { path: cardFile }, primary: { match: '手填的词' } }],
+  }).cards[0]
+  report.eq('a typed marker comes first', host.searchTermsOf(typed)[0], '手填的词')
+  report.eq('and the rest still follow it', host.searchTermsOf(typed).slice(1).join('|'), terms.join('|'))
+
+  // A card whose name and file agree yields one term, not two.
+  writeJson(path.join(sb.cards, '道渊v5.4.2.json'), v2Card({ name: '道渊v5.4.2' }))
+  const same = host.normalizeCfg({
+    cards: [{ id: 'c', label: '道渊v5.4.2', plain: { path: path.join(sb.cards, '道渊v5.4.2.json') } }],
+  }).cards[0]
+  report.eq('one name under two spellings is one term', host.searchTermsOf(same).length, 1)
+
+  // An unreadable card falls back to the file names rather than answering nothing.
+  const broke = host.normalizeCfg({
+    cards: [{ id: 'd', label: '坏卡', plain: { path: path.join(sb.cards, 'missing.json') } }],
+  }).cards[0]
+  report.eq(
+    'an unreadable card still offers its file name and label',
+    host.searchTermsOf(broke).join('|'),
+    'missing|坏卡',
+  )
+
+  // The two halves have to tidy a name the same way, or the panel's search link
+  // offers wording the host would never search with.
+  const { internals } = loadClient()
+  const samples = ['独占配信中v1.2', '龙娘回廊！5.3 MVU版本', '《道渊》v5.4.2 ', '艹🐎大作战V35_PLUS', '五年一班V1.2 MVU版本']
+  report.eq(
+    'both halves strip a name identically',
+    samples.map((s) => host.tidyTerm(s)),
+    samples.map((s) => internals.tidyTerm(s)),
+  )
+}
+
 /* ------------------------------------------------------------ merge engine */
 
 {

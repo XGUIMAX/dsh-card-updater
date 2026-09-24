@@ -206,10 +206,25 @@ const { client, internals: c, source } = loadClient()
   report.eq('indexQuery prefers the resolved wording', c.indexQuery({ primary: { query: 'q', match: 'm' } }), 'q')
   report.eq('indexQuery falls back to the marker', c.indexQuery({ primary: { match: 'm' } }), 'm')
   report.eq(
-    'indexQuery derives from the label',
+    'indexQuery derives from the label when there is no path',
     c.indexQuery({ label: '道渊v5.4.2 MVU版本.json' }),
     '道渊',
   )
+  // The file name is what the user renamed the card to, and it is where the
+  // wording that matches a release thread usually lives; the name inside the card
+  // is not available in the browser half at all.
+  report.eq(
+    'indexQuery uses the card file name when there is no marker',
+    c.indexQuery({ plain: { path: 'D:\\cards\\来当小男友爆管人的米吧！.json' }, label: '独占配信中' }),
+    '来当小男友爆管人的米吧',
+  )
+  report.eq(
+    'indexQuery falls through to the MVU file name',
+    c.indexQuery({ mvu: { path: 'D:\\cards\\道渊v5.4.2 MVU版本.json' }, label: 'x' }),
+    '道渊',
+  )
+  report.eq('indexQuery finds nothing it can use', c.indexQuery({}), '')
+  report.eq('tidyTerm matches the host half', c.tidyTerm('龙娘回廊！5.3 MVU版本'), '龙娘回廊')
 
   report.ok('fieldName translates a known field', c.fieldName('description') !== 'description')
   report.eq('fieldName keeps an unknown one', c.fieldName('something_else'), 'something_else')

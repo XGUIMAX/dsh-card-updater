@@ -199,4 +199,30 @@ const diff = (before, after) => before.filter((k) => !after.includes(k))
   }
 }
 
+/* ------------------------------------------------------------- search terms */
+
+{
+  report.group('every card offers something to search with')
+  const sb = sandbox('terms')
+  const host = loadHost(sb.home)
+  const names = fs.readdirSync(REAL_CARDS).filter((n) => /\.json$/i.test(n) && !/MVU/i.test(n))
+  const cards = names.map((n, i) => ({
+    id: `t${i}`,
+    label: n.replace(/\.json$/i, ''),
+    plain: { path: path.join(REAL_CARDS, n) },
+  }))
+  host.db.cfg = host.normalizeCfg({ cards })
+  host.db.loaded = true
+
+  for (const entry of host.db.cfg.cards) {
+    // Read-only: the card is opened to learn what it calls itself, never written.
+    const terms = host.searchTermsOf(entry)
+    report.ok(
+      `${entry.label} → ${terms.map((t) => `「${t}」`).join(' ')}`,
+      terms.length > 0,
+      'no term at all means this card could never be located on a release page',
+    )
+  }
+}
+
 process.exit(report.finish() ? 1 : 0)

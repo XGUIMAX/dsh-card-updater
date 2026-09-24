@@ -856,11 +856,31 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * The term to search the index with. The server records the wording it
-     * resolved for this card, which is the only version that can see inside the
-     * card file, so it is used when present. The local fallbacks below only run
-     * before the first check, and follow the same order: the configured marker,
-     * then the MVU file name, then the label.
+     * Strip an MVU tag, a trailing version, and wrapping punctuation.
+     *
+     * This mirrors what the host half does to a card name, and it has to: the
+     * panel's "search the index" link offers the wording the host would search
+     * with, and two implementations that drift apart send the user to a search
+     * for something the card is not called.
+     */
+    function tidyTerm(raw) {
+      return String(raw || '')
+        .replace(/\s*MVU\s*版本?\s*/gi, ' ')
+        .replace(/[\s_-]*[vV]?\d+(?:[._]\d+)*[a-zA-Z_]*[\s_-]*$/, '')
+        .replace(/^[\s《【\[（(]+/, '')
+        .replace(/[\s》】\]）)]+$/, '')
+        .replace(/[\s！!。.，,、；;：:？?～~…·]+$/, '')
+        .trim()
+    }
+
+    /**
+     * The term to search the index with. The wording the server recorded for this
+     * card comes first, since it is the one that actually worked and the only one
+     * that could see inside the card file. After it come the configured marker and
+     * then the file names, in the same order the host tries them: the name inside
+     * a card is not always what the author titled the thread — one card here says
+     * `独占配信中v1.2` inside itself while its thread reads `来当小男友爆管人的米吧
+     * ！`, and only the file name finds that thread.
      * @param {object} entry - the config entry.
      * @returns {string} the search term.
      */
@@ -869,15 +889,15 @@ window.__ModuleLoader__.load({
       if (resolved) return resolved
       const marker = String((entry.primary && entry.primary.match) || '').trim()
       if (marker) return marker
-      const stem = String((entry.label || '')).replace(/\.json$/i, '')
-      return (
-        stem
-          .replace(/\s*MVU\s*版本?\s*/gi, ' ')
-          .replace(/[\s_-]*[vV]?\d+(?:[._]\d+)*[a-zA-Z_]*[\s_-]*$/, '')
-          .replace(/^[\s《【\[（(]+/, '')
-          .replace(/[\s》】\]）)]+$/, '')
-          .trim() || stem
-      )
+      for (const raw of [entry.plain && entry.plain.path, entry.mvu && entry.mvu.path, entry.label]) {
+        const stem = String(raw || '')
+          .split(/[\\/]/)
+          .pop()
+          .replace(/\.json$/i, '')
+        const tidied = tidyTerm(stem)
+        if (tidied.length >= 2) return tidied
+      }
+      return String(entry.label || '').replace(/\.json$/i, '')
     }
 
     /**
