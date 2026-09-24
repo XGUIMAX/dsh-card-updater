@@ -77,6 +77,7 @@ window.__ModuleLoader__.load({
       'ok.manualBackup': '已手动备份全部卡片',
       'ok.backupDir': '备份目录已改',
       'ok.backupDirMoved': '备份目录已改，搬过来 {moved} 份旧备份',
+      'ok.backupDirSkipped': '备份目录已改；有 {n} 份同名但内容不同的备份留在原处没动，两边的都还在，可以自己看一眼 {dir}',
       'btn.close': '关闭',
       'btn.reload': '重新载入',
       'btn.reload.hint': '重新读取后台状态；未保存的改动会被丢弃',
@@ -244,6 +245,12 @@ window.__ModuleLoader__.load({
       'tag.plain-before-merge': '合并前的原版卡',
       'tag.before-restore': '还原前快照',
       'tag.before-rollback': '回滚前快照',
+      // Three kinds the host writes but this dictionary never named, so the
+      // snapshot list showed them as their raw tag: "before-chat-repoint" beside
+      // a folder of Chinese labels.
+      'tag.before-import': '导入前原版卡',
+      'tag.before-name-marker': '补名字标记前',
+      'tag.before-chat-repoint': '改会话指向前',
       // The panel's own update check: it watches the plugin repository, not a
       // card, so it keeps its own little vocabulary.
       'upd.checking': '检测中…',
@@ -325,6 +332,8 @@ window.__ModuleLoader__.load({
       'ok.manualBackup': 'All cards backed up manually',
       'ok.backupDir': 'Backup folder changed',
       'ok.backupDirMoved': 'Backup folder changed; {moved} old snapshots moved across',
+      'ok.backupDirSkipped':
+        'Backup folder changed; {n} snapshot(s) sharing a name but not its contents were left where they were. Both copies are still there, in {dir}',
       'btn.close': 'Close',
       'btn.reload': 'Reload',
       'btn.reload.hint': 'Re-read the host state; unsaved edits are dropped',
@@ -493,6 +502,9 @@ window.__ModuleLoader__.load({
       'tag.plain-before-merge': 'Original before merge',
       'tag.before-restore': 'Before restore',
       'tag.before-rollback': 'Before rollback',
+      'tag.before-import': 'Original before import',
+      'tag.before-name-marker': 'Before the name marker',
+      'tag.before-chat-repoint': 'Before repointing conversations',
       'upd.checking': 'Checking…',
       'upd.latest': 'Up to date',
       'upd.available': 'Update {v}',
@@ -1113,6 +1125,9 @@ window.__ModuleLoader__.load({
       return next
     }
 
+    /** How close to expiry a token has to be before it is worth flagging. */
+    const TOKEN_WARN_MS = 24 * 60 * 60 * 1000
+
     /**
      * Turn a verifyIndex answer into the line shown under the token field. An
      * expired token is named and dated, because "invalid or expired" leaves the
@@ -1120,9 +1135,6 @@ window.__ModuleLoader__.load({
      * @param {object} res - the host half's answer.
      * @returns {{kind: string, text: string, renew: boolean}} badge state.
      */
-    /** How close to expiry a token has to be before it is worth flagging. */
-    const TOKEN_WARN_MS = 24 * 60 * 60 * 1000
-
     function describeVerify(res) {
       const ok = !!(res && res.ok && res.loggedIn)
       const expires = res && res.expiresAt ? new Date(res.expiresAt) : null
@@ -1336,7 +1348,15 @@ window.__ModuleLoader__.load({
       const r = res && res.result
       if (!r) return ''
       const bits = []
-      if (r.changed && r.changed.length) bits.push(r.changed.slice(0, 8).join('、') + (r.changed.length > 8 ? ' …' : ''))
+      // The host's log is a list of tags — `fields:description,name`, `book:+3` —
+      // and `mergeText` is what turns one into a sentence. Joining the tags
+      // straight into the notice put `fields:description` in front of the reader,
+      // in the one place that crosses the boundary between an operation and its
+      // report, while the card's own "last merge" line translated them properly.
+      if (r.changed && r.changed.length) {
+        const named = r.changed.slice(0, 8).map(mergeText).filter(Boolean)
+        bits.push(named.join('、') + (r.changed.length > 8 ? ' …' : ''))
+      }
       if (r.book) bits.push(`书 +${r.book.added}/~${r.book.updated}/保留${r.book.conflicts}`)
       if (r.regexAdded) bits.push(`正则 +${r.regexAdded}`)
       // A rename is the part of an import worth reading: the card kept its path in
@@ -1938,10 +1958,16 @@ window.__ModuleLoader__.load({
             const res = await apiPost({ action: 'setBackupDir', dir, move: true })
             if (res && res.ok === false) throw new Error(res.error || 'failed')
             const done = (res && res.result) || {}
+            // A name that exists in both folders holding different bytes is left
+            // in both. Saying so is the difference between a move that finished
+            // and one that quietly kept a duplicate behind.
+            const skipped = Array.isArray(done.skipped) ? done.skipped.length : 0
             setNotice(
-              Number(done.moved)
-                ? t('ok.backupDirMoved').replace('{moved}', String(done.moved))
-                : t('ok.backupDir'),
+              skipped
+                ? t('ok.backupDirSkipped').replace('{n}', String(skipped)).replace('{dir}', String(done.dir || dir))
+                : Number(done.moved)
+                  ? t('ok.backupDirMoved').replace('{moved}', String(done.moved))
+                  : t('ok.backupDir'),
             )
             await load()
           } catch (e) {
