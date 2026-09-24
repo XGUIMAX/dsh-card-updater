@@ -838,6 +838,70 @@ const report = createReport('dsh-card-updater host')
   report.eq('importPlain: it does not write another snapshot', same.backup, null)
 }
 
+/* -------------------------------------------------- entries with no file */
+
+{
+  report.group('entries whose files are gone')
+  const sb = sandbox('missing')
+  const host = loadHost(sb.home)
+
+  const keep = path.join(sb.cards, 'keep.json')
+  const keepMvu = path.join(sb.cards, 'keep MVU版本.json')
+  writeJson(keep, v2Card({ name: 'keep' }))
+  writeJson(keepMvu, workspaceCard({ name: 'keep MVU版本' }))
+
+  host.db.cfg = host.normalizeCfg({
+    cards: [
+      { id: 'ok', label: '在的', plain: { path: keep }, mvu: { path: keepMvu } },
+      // A card deleted in Tavern: its file is gone and its entry stayed.
+      { id: 'gone', label: '已删除的卡', plain: { path: path.join(sb.cards, 'deleted.json') }, primary: { url: 'https://kept' } },
+      // Half there: one slot resolves, the other does not.
+      { id: 'half', label: '一半在', plain: { path: keep }, mvu: { path: path.join(sb.cards, 'vamoosed.json') } },
+      // Nothing configured at all, which is not a missing file.
+      { id: 'blank', label: '空的' },
+    ],
+  })
+  host.db.loaded = true
+
+  const state = host.statePayload()
+  report.eq('a card that is there is not reported', state.missing.ok, undefined)
+  report.eq('a deleted card is reported as fully gone', state.missing.gone.gone, true)
+  report.eq('a card missing one of its two files is reported as half', state.missing.half, {
+    plain: false,
+    mvu: true,
+    gone: false,
+  })
+  report.eq('an entry with no paths is not reported', state.missing.blank, undefined)
+
+  const pruned = await act(host, { action: 'pruneMissing' })
+  report.eq('the clear says how many it removed', pruned.removed, 1)
+  report.eq('the deleted card entry is the one removed', pruned.labels, ['已删除的卡'])
+  report.eq(
+    'a card that still has a file keeps its entry',
+    host.db.cfg.cards.map((c) => c.id).join(','),
+    'ok,half,blank',
+  )
+  report.ok(
+    'no card file was touched by the clear',
+    fs.existsSync(keep) && fs.existsSync(keepMvu),
+    'this removes config entries, never files',
+  )
+
+  const again = await act(host, { action: 'pruneMissing' })
+  report.eq('clearing again removes nothing', again.removed, 0)
+  report.eq('and leaves the list as it was', host.db.cfg.cards.length, 3)
+
+  const onDisk = readJson(path.join(sb.tool, 'config.json'))
+  report.eq('the removal reaches the config on disk', onDisk.cards.length, 3)
+
+  // A card that comes back before anyone clears the list must not be treated as
+  // gone, which is why this is decided per request rather than remembered.
+  writeJson(path.join(sb.cards, 'vamoosed.json'), workspaceCard({ name: '回来了' }))
+  const after = host.statePayload()
+  report.eq('a file that reappears stops being reported', after.missing.half, undefined)
+  report.eq('and the list is otherwise clear', Object.keys(after.missing).length, 0)
+}
+
 /* --------------------------------------------------------------- self view */
 
 {

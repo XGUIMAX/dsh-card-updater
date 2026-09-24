@@ -168,6 +168,15 @@ window.__ModuleLoader__.load({
       'state.baseline': '待注册基线',
       'state.busy': '执行中…',
       'state.off': '已停用',
+      // A card deleted in Tavern takes its file and leaves its entry, and both of
+      // these say so rather than leaving a row that looks ordinary.
+      'state.gone': '卡文件已不在',
+      'state.halfGone': '有一半文件不在',
+      'btn.pruneMissing': '清理失效条目',
+      'prune.none': '没有文件已不在的条目',
+      'prune.hint': '移除配置里的文件已经不在的条目',
+      'prune.confirm': '有 {n} 个条目的文件已经不在磁盘上：{list}。要移除这些条目吗？它们的发布链接会一起丢掉，卡放回来的话需要重新配。',
+      'prune.done': '已移除 {n} 个失效条目',
       'empty': '暂无条目；点「重新扫描卡片目录」按文件名自动配对。',
       'log.title': '最近操作',
       'backup.title': '备份',
@@ -425,6 +434,14 @@ window.__ModuleLoader__.load({
       'state.baseline': 'baseline pending',
       'state.busy': 'working…',
       'state.off': 'disabled',
+      'state.gone': 'card file is gone',
+      'state.halfGone': 'half of this card is gone',
+      'btn.pruneMissing': 'Clear missing',
+      'prune.none': 'Nothing points at a file that is gone',
+      'prune.hint': 'Remove entries whose files are no longer on disk',
+      'prune.confirm':
+        '{n} entries point at files that are no longer on disk: {list}. Remove them? Their release links go with them, and putting a card back means setting it up again.',
+      'prune.done': 'Removed {n} entry/entries pointing at files that are gone',
       'empty': 'No entries — rescan the card directory to auto-pair.',
       'log.title': 'Recent actions',
       'backup.title': 'Backups',
@@ -1036,7 +1053,21 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'dcu-sub' }, parts.join(' · '))
     }
 
-    function statusOf(entry, report) {
+    /**
+     * The chip on a card row.
+     * @param {object} entry - the config entry.
+     * @param {object|null} report - the last check report.
+     * @param {object} [missing] - the host's map of entries whose files are gone.
+     * @returns {{kind: string, text: string}}
+     */
+    function statusOf(entry, report, missing) {
+      // A file the disk no longer has comes first: every other answer below is
+      // about a card that can be opened, and this one cannot be. A card deleted
+      // in Tavern leaves its entry behind, and without this the row looked
+      // ordinary — the only sign was a check button that could never succeed.
+      const gone = missing && missing[entry.id]
+      if (gone && gone.gone) return { kind: 'bad', text: t('state.gone') }
+      if (gone) return { kind: 'warn', text: t('state.halfGone') }
       if (entry.enabled === false) return { kind: 'idle', text: t('state.off') }
       const hasPlain = !!normalizeSrc(entry.plain && entry.plain.src)
       const hasPrimary = !!String((entry.primary && entry.primary.url) || '').trim()
@@ -1514,7 +1545,7 @@ window.__ModuleLoader__.load({
     /* --------------------------------------------------------- components */
 
     function EntryCard({ entry, u, patch, onPick, onCheck, onImportNew, onMerge, onRemove, onDebug }) {
-      const st = statusOf(entry, u.data ? u.data.lastReport : null)
+      const st = statusOf(entry, u.data ? u.data.lastReport : null, u.data ? u.data.missing : null)
       // This card's own last result, if the last thing that ran was about it.
       const note = u.message && u.message.cardId === entry.id ? u.message : null
       /**
@@ -2797,6 +2828,12 @@ window.__ModuleLoader__.load({
       const cfg = draft || (u.data ? u.data.config : null)
       const dirty = !!(draft && u.data && JSON.stringify(draft) !== JSON.stringify(u.data.config))
       const report = u.data ? u.data.lastReport : null
+      const missing = u.data ? u.data.missing : null
+      // How many entries point at files the disk no longer has. The host reports
+      // this per entry, and the toolbar's clear button reads its count off it.
+      const goneCount = ((u.data && u.data.config && u.data.config.cards) || []).filter(
+        (c) => missing && missing[c.id] && missing[c.id].gone,
+      ).length
       // Cards carrying news lead the list: a check that found an update should not
       // leave it buried under everything that stayed put. Array.sort is stable, so
       // cards of equal standing keep the order they were already in, and an
@@ -2807,7 +2844,10 @@ window.__ModuleLoader__.load({
       // picked is the one they are looking for, and re-imposing the automatic
       // ranking on top of it would fight the choice they just made.
       const cardRank = (entry) => {
-        if (statusOf(entry, report).kind === 'warn') return 0
+        // A card with no file on disk is not news, so it goes last however the
+        // list is sorted: it cannot be checked, merged or opened.
+        if (missing && missing[entry.id] && missing[entry.id].gone) return 9
+        if (statusOf(entry, report, missing).kind === 'warn') return 0
         // A rename is worth surfacing: the card is the same card and the link has
         // not moved, but the name people know it by has, and that is easy to miss
         // in a long list.
@@ -2910,6 +2950,32 @@ window.__ModuleLoader__.load({
           setDraft(null)
           await u.load()
           u.push(t('btn.rescan'), 'ok')
+        } else if (res && res.error) {
+          u.push(res.error, 'bad')
+        }
+      }, [u])
+
+      const pruneMissing = useCallback(async () => {
+        const map = (u.data && u.data.missing) || {}
+        const cards = (u.data && u.data.config && u.data.config.cards) || []
+        const gone = cards.filter((c) => map[c.id] && map[c.id].gone)
+        if (!gone.length) {
+          u.push(t('prune.none'), 'info')
+          return
+        }
+        // Removing an entry throws away the release link the operator typed, and
+        // a card on a disk that is not plugged in looks exactly like a card that
+        // was deleted. Only one of those two wants the entry gone, so it is
+        // asked, and the question names what it is about.
+        const names = gone.slice(0, 3).map((c) => c.label)
+        const list = names.join('、') + (gone.length > names.length ? ` 等 ${gone.length} 个` : '')
+        const question = t('prune.confirm').replace('{n}', String(gone.length)).replace('{list}', list)
+        if (typeof window !== 'undefined' && typeof window.confirm === 'function' && !window.confirm(question)) return
+        const res = await apiPost({ action: 'pruneMissing' })
+        if (res && res.ok) {
+          setDraft(null)
+          await u.load()
+          u.push(t('prune.done').replace('{n}', String(res.removed)), 'ok')
         } else if (res && res.error) {
           u.push(res.error, 'bad')
         }
@@ -3238,6 +3304,19 @@ window.__ModuleLoader__.load({
               t('btn.rescan'),
             ),
             h('button', { type: 'button', className: 'dcu-btn tiny ghost', disabled: u.busy, onClick: addEntry }, t('btn.add')),
+            // Only lit when there is something to clear, and it says how many, so
+            // a deleted card cannot sit in the list looking ordinary.
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'dcu-btn tiny ghost',
+                disabled: u.busy || !goneCount,
+                title: goneCount ? t('prune.hint') : t('prune.none'),
+                onClick: pruneMissing,
+              },
+              goneCount ? `${t('btn.pruneMissing')} (${goneCount})` : t('btn.pruneMissing'),
+            ),
             h(
               'button',
               {

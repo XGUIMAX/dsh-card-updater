@@ -255,6 +255,29 @@ const { client, internals: c, source } = loadClient()
     'the host returns a list here, and the panel reads its length',
   )
 
+  // The chip on a card row. A card whose file is gone has to say so rather than
+  // looking like any other unconfigured entry.
+  report.eq(
+    'statusOf: a card whose file is gone reads as broken',
+    c.statusOf({ id: 'x' }, null, { x: { plain: true, mvu: true, gone: true } }),
+    { kind: 'bad', text: c.t('state.gone') },
+  )
+  report.eq(
+    'statusOf: a card missing one of its files reads as a warning',
+    c.statusOf({ id: 'x' }, null, { x: { plain: false, mvu: true, gone: false } }),
+    { kind: 'warn', text: c.t('state.halfGone') },
+  )
+  report.eq(
+    'statusOf: an ordinary card is unaffected by the map',
+    c.statusOf({ id: 'x' }, null, {}),
+    { kind: 'idle', text: c.t('state.unlinked') },
+  )
+  report.eq(
+    'statusOf: another card missing is not this card',
+    c.statusOf({ id: 'mine' }, null, { other: { plain: true, mvu: true, gone: true } }).kind,
+    'idle',
+  )
+
   report.ok('strategyShort: full', c.strategyShort({ mergeStrategy: 'full' }) !== c.t('strategy.full').replace(/^/, '\u0000'))
   report.eq('strategyShort: full reads as its own label', c.strategyShort({ mergeStrategy: 'full' }), c.t('strategy.full'))
   report.eq('strategyShort: missing setting falls back', c.strategyShort({}), c.t('strategy.standard'))
