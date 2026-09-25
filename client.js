@@ -1438,33 +1438,68 @@ window.__ModuleLoader__.load({
       return t('strategy.standard')
     }
 
+    /** Installed once per page; see `installStyles`. */
+    let styleWatcher = null
+
     /**
-     * Put the current stylesheet in the document, and leave exactly one copy.
+     * Put the current stylesheet in the document, and keep it there.
      *
+     * Two things are wanted at once and the old version only bought the first.
      * The panel mounts in two places (the settings section and the sidebar
-     * sheet), so two mounts used to mean two tags. Which one won was decided by
-     * document order, not by recency: with equal specificity the later tag wins
-     * every property, so a page that had mounted the sheet before the settings
-     * section could end up rendering under an older revision of this very file.
-     * Clearing the keyed tags first makes the tag this call appends the newest
-     * one, which is the only revision that should ever be in effect.
+     * entry), so two tags must not both be live: with equal specificity the later
+     * tag wins every property, and a page that had mounted one before the other
+     * could render under an older revision of this very file. Clearing every
+     * keyed tag and appending a fresh one solved that.
+     *
+     * What it did not solve is the tag going away. The sidebar entry stays
+     * mounted for the life of the page, so its `useEffect` runs exactly once;
+     * anything that takes our tag out of `document.head` afterwards — the shell
+     * rebuilding the head on a theme switch, say — leaves the button drawn as a
+     * browser default forever. A bordered grey box, centred text, no full width.
+     * `border:0` is in the stylesheet and a border is on screen, which is how
+     * this was identified.
+     *
+     * So the tag is reused rather than replaced, and a `MutationObserver` on the
+     * head puts it back when something else removes it. Rewriting the text is
+     * what still keeps the newest revision winning: there is only ever one tag to
+     * write to, so document order cannot decide anything any more.
      */
     function installStyles() {
-      try {
-        for (const old of Array.from(document.querySelectorAll('style[data-dsh-card-updater]'))) old.remove()
+      const head = typeof document === 'undefined' ? null : document.head
+      if (!head) return
+      const fill = (tag) => {
+        tag.setAttribute('data-dsh-card-updater', '1')
+        if (tag.textContent !== CSS) tag.textContent = CSS
+        return tag
+      }
+      const existing = head.querySelector('style[data-dsh-card-updater]')
+      if (existing) fill(existing)
+      else head.appendChild(fill(document.createElement('style')))
+
+      if (styleWatcher || typeof MutationObserver !== 'function') return
+      // The callback only ever adds a missing tag, never edits one that is
+      // there, so re-entering after its own append finds the tag and stops.
+      styleWatcher = new MutationObserver(() => {
+        const live = document.head && document.head.querySelector('style[data-dsh-card-updater]')
+        if (live) return
         const tag = document.createElement('style')
         tag.setAttribute('data-dsh-card-updater', '1')
         tag.textContent = CSS
         document.head.appendChild(tag)
-      } catch {
-        /* A document without a head is not a reason to fail the render. */
-      }
+      })
+      styleWatcher.observe(head, { childList: true })
     }
 
     function useStyles() {
+      // Every render rather than only the first. `installStyles` is idempotent —
+      // it reuses the tag and rewrites the text only when it differs — so the
+      // cost is one query and one string compare, and the benefit is that any
+      // render at all is another chance to put back a sheet that went missing.
+      // The observer above is the main guard; this is what covers a browser
+      // without `MutationObserver`.
       useEffect(() => {
         installStyles()
-      }, [])
+      })
     }
 
     function useUpdater() {
@@ -3549,6 +3584,14 @@ window.__ModuleLoader__.load({
     }
 
     function apply(ctx) {
+      // The stylesheet goes in when the plugin loads, not when something first
+      // renders. Every mount site calls `useStyles`, but that runs from an effect
+      // and effects run after the first paint, so the sidebar entry's first frame
+      // was always an unstyled browser button that only looked right on the
+      // second one. Loading it here also means the sheet is already in place for
+      // whatever mounts later.
+      installStyles()
+
       ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-card-updater: dictionary')
       // The chooser is optional. A build without one falls back to the panel's
       // own browser, so a missing service must not keep the plugin off the page.

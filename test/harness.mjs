@@ -87,6 +87,74 @@ export function loadHost(sandboxHome) {
 export const CLIENT_FILE = path.join(PLUGIN_DIR, 'client.js')
 
 /**
+ * A document just large enough to hold a stylesheet: a head, elements that
+ * remember their attributes and text, and a `MutationObserver` that can be fired
+ * by hand. Everything else the browser half does with the DOM is left to the
+ * real browser; this exists so the style injector can be exercised without one.
+ * @returns {{document: object, MutationObserver: Function, fire: Function, countStyles: Function}}
+ */
+export function createDom() {
+  const makeElement = (tagName) => {
+    const el = {
+      tagName,
+      attrs: {},
+      textContent: '',
+      parentNode: null,
+      setAttribute(name, value) {
+        el.attrs[name] = String(value)
+      },
+      getAttribute(name) {
+        return Object.prototype.hasOwnProperty.call(el.attrs, name) ? el.attrs[name] : null
+      },
+      remove() {
+        if (el.parentNode) el.parentNode.removeChild(el)
+      },
+    }
+    return el
+  }
+  const head = makeElement('head')
+  head.children = []
+  head.querySelector = (selector) => {
+    const match = /^style\[([\w-]+)\]$/.exec(String(selector))
+    if (!match) return null
+    return head.children.find((child) => child.attrs[match[1]]) || null
+  }
+  head.appendChild = (node) => {
+    node.parentNode = head
+    head.children.push(node)
+    return node
+  }
+  head.removeChild = (node) => {
+    const at = head.children.indexOf(node)
+    if (at >= 0) head.children.splice(at, 1)
+    node.parentNode = null
+    return node
+  }
+
+  const observers = []
+  class FakeMutationObserver {
+    constructor(callback) {
+      this.callback = callback
+      observers.push(this)
+    }
+    observe() {}
+    disconnect() {}
+  }
+
+  return {
+    document: { head, body: makeElement('body'), createElement: makeElement },
+    MutationObserver: FakeMutationObserver,
+    /** Pretend the head changed, which is what a real observer would be told. */
+    fire() {
+      for (const observer of observers) observer.callback([])
+    },
+    countStyles() {
+      return head.children.filter((child) => child.attrs['data-dsh-card-updater']).length
+    },
+  }
+}
+
+/**
  * Load the browser half without a browser.
  *
  * `client.js` registers itself with `window.__ModuleLoader__.load({id, factory})`
@@ -97,7 +165,7 @@ export const CLIENT_FILE = path.join(PLUGIN_DIR, 'client.js')
  * The factory is rewritten so its last statement hands back every name it
  * declares under `__test`. That is the only addition to the shipped source, and
  * it is made to the text in memory, never to the file.
- * @returns {{client: object, internals: Record<string, unknown>, source: string}} the module and its internals.
+ * @returns {{client: object, internals: Record<string, unknown>, source: string, dom: object}} the module and its internals.
  */
 export function loadClient() {
   const raw = fs.readFileSync(CLIENT_FILE, 'utf8')
@@ -117,8 +185,11 @@ export function loadClient() {
       },
     },
   }
+  const dom = createDom()
+  // `document` and `MutationObserver` arrive as parameters so the module body's
+  // own references resolve to this stub rather than to anything global.
   // eslint-disable-next-line no-new-func
-  new Function('window', patched)(fakeWindow)
+  new Function('window', 'document', 'MutationObserver', patched)(fakeWindow, dom.document, dom.MutationObserver)
   if (!captured || typeof captured.factory !== 'function') throw new Error('client half did not register itself')
 
   const react = {
@@ -134,7 +205,7 @@ export function loadClient() {
     if (id === 'react') return react
     throw new Error(`unexpected require in the browser half: ${id}`)
   })
-  return { client, internals: client.__test || {}, source: raw, react }
+  return { client, internals: client.__test || {}, source: raw, react, dom }
 }
 
 /* ------------------------------------------------------------ test report */

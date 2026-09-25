@@ -15,19 +15,15 @@ const { client, internals: c, source } = loadClient()
 
 /* ------------------------------------------------------------------- wiring */
 
-{
-  report.group('module wiring')
-  report.eq('registers under the plugin name', client.name, 'dsh-card-updater')
-  report.eq('exports an apply', typeof client.apply, 'function')
-  for (const service of ['slots', 'locale', 'uiWorkspace']) {
-    report.ok(`declares ${service} so cordis resolves it`, (client.inject || []).includes(service))
-  }
-  report.ok('the file on disk is the one that was loaded', fs.readFileSync(CLIENT_FILE, 'utf8') === source)
-
-  // Bind the real dictionary the way the host does, so everything below reads
-  // the strings a user would see rather than the raw keys.
+/**
+ * A client context shaped the way the shipped one is, so `apply` can be run for
+ * real. The dictionary is registered from inside an effect, which is why the
+ * effect here runs its callback rather than only recording it: a fake effect
+ * leaves every string in the panel unresolved and hides real failures.
+ */
+function makeCtx() {
   const dicts = new Map()
-  const ctx = {
+  return {
     locale: {
       register(ns, dict) {
         dicts.set(ns, dict)
@@ -39,22 +35,82 @@ const { client, internals: c, source } = loadClient()
       },
     },
     slots: { inject() {}, register() {} },
-    // The dictionary is registered from inside an effect, so an effect that only
-    // records its callback would leave every string in the panel unresolved.
     effect(fn) {
       const dispose = typeof fn === 'function' ? fn() : null
       return typeof dispose === 'function' ? dispose : () => {}
     },
     inject() {},
   }
+}
+
+{
+  report.group('module wiring')
+  report.eq('registers under the plugin name', client.name, 'dsh-card-updater')
+  report.eq('exports an apply', typeof client.apply, 'function')
+  for (const service of ['slots', 'locale', 'uiWorkspace']) {
+    report.ok(`declares ${service} so cordis resolves it`, (client.inject || []).includes(service))
+  }
+  report.ok('the file on disk is the one that was loaded', fs.readFileSync(CLIENT_FILE, 'utf8') === source)
+
+  // Bind the real dictionary the way the host does, so everything below reads
+  // the strings a user would see rather than the raw keys.
   let applied = null
   try {
-    client.apply(ctx)
+    client.apply(makeCtx())
     applied = true
   } catch (e) {
     applied = e && e.message ? e.message : String(e)
   }
   report.eq('apply runs against a plain context', applied, true)
+}
+
+/* ------------------------------------------------------- stylesheet lifetime */
+
+{
+  report.group('stylesheet lifetime')
+  const fresh = loadClient()
+  const dom = fresh.dom
+  const sheet = () => {
+    const tag = dom.document.head.children[0]
+    return tag ? String(tag.textContent) : ''
+  }
+
+  fresh.internals.installStyles()
+  report.eq('the sheet lands in the document', dom.countStyles(), 1)
+  report.ok('it carries the panel rules', /\.dcu-entry\{/.test(sheet()))
+  report.ok(
+    'the entry rule really drops the border',
+    /\.dcu-entry\{[^}]*border:0/.test(sheet()),
+    'a border on screen with border:0 in the sheet is how the missing sheet was spotted',
+  )
+
+  fresh.internals.installStyles()
+  report.eq('installing twice does not stack a second tag', dom.countStyles(), 1)
+
+  // Whatever removes the tag has to be undone. The shell rebuilding
+  // `document.head` on a theme switch is the case that was reported: the sidebar
+  // entry stays mounted, so its effect never runs again and the button is left
+  // drawn as a browser default.
+  dom.document.head.children[0].remove()
+  report.eq('the tag is gone', dom.countStyles(), 0)
+  dom.fire()
+  report.eq('the observer puts it back', dom.countStyles(), 1)
+  report.ok('with the same rules', /\.dcu-entry\{/.test(sheet()))
+  dom.fire()
+  report.eq('firing again does not stack tags', dom.countStyles(), 1)
+
+  // Loading the plugin installs the sheet, so the first frame is styled rather
+  // than the second: a mount site's effect runs after the first paint.
+  const applied = loadClient()
+  applied.client.apply(makeCtx())
+  report.eq('applying the plugin puts the sheet in place', applied.dom.countStyles(), 1)
+  applied.dom.document.head.children[0].remove()
+  applied.dom.fire()
+  report.eq('and that installation is watched too', applied.dom.countStyles(), 1)
+
+  // A second mount point must not produce a second tag, whatever order they run.
+  applied.internals.installStyles()
+  report.eq('a second mount point reuses the tag', applied.dom.countStyles(), 1)
 }
 
 /* --------------------------------------------------------------- dictionary */
