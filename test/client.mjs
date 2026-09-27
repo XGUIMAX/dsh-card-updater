@@ -123,6 +123,13 @@ function makeCtx() {
   const enKeys = Object.keys(en)
 
   report.eq('both languages define the same number of keys', zhKeys.length, enKeys.length)
+  // The host reports companion material by rule key, so the panel has to be able
+  // to resolve every key it can produce. `extra.<key>` is the second family built
+  // from a variable, alongside `gate.<key>`.
+  for (const key of ['preset']) {
+    report.ok(`extra.${key} resolves in both languages`, zh['extra.' + key] && en['extra.' + key], '')
+  }
+  report.eq('and the line it belongs to has a name', typeof zh['primary.extra'], 'string')
   report.eq(
     'every Chinese key has an English one',
     zhKeys.filter((k) => !Object.prototype.hasOwnProperty.call(en, k)),

@@ -137,6 +137,8 @@ window.__ModuleLoader__.load({
       'primary.renamed': '作者改过贴子名，链接仍是同一个（现在叫 {to}）',
       'primary.current': '未发现比本地更新的版本',
       'primary.gated': '有下载条件',
+      'primary.extra': '帖子附带',
+      'extra.preset': '专用预设',
       'primary.error': '检索失败',
       'primary.notset': '未配置主要链接',
       'btn.open': '打开',
@@ -404,6 +406,8 @@ window.__ModuleLoader__.load({
       'primary.renamed': 'The author renamed this thread; the link is unchanged (now: {to})',
       'primary.current': 'Nothing newer than the local card',
       'primary.gated': 'Download conditions',
+      'primary.extra': 'Also ships',
+      'extra.preset': 'companion preset',
       'primary.error': 'watch failed',
       'primary.notset': 'no release link',
       'btn.open': 'Open',
@@ -1364,6 +1368,15 @@ window.__ModuleLoader__.load({
         bits.push({
           kind: 'info',
           text: t('primary.gated') + '：' + state.gates.map((g) => t('gate.' + g)).join(' · '),
+        })
+      }
+      // Companion material is reported on its own line rather than folded into
+      // the download conditions: the page is not withholding anything, it is
+      // handing out something extra, and the two would read as one problem.
+      if (state.extras && state.extras.length) {
+        bits.push({
+          kind: 'info',
+          text: t('primary.extra') + '：' + state.extras.map((e) => t('extra.' + e)).join(' · '),
         })
       }
       if (state.renamedFrom && state.title) {
