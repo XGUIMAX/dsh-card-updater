@@ -53,6 +53,7 @@ window.__ModuleLoader__.load({
       'merge.bookAdopted': '补上了原先没有的世界书',
       'merge.regexAdded': '新增了 {n} 条正则脚本',
       'merge.extAdded': '补上了 {what}',
+      'merge.topSynced': '同步了顶层的 {what}',
       'err.openFolder': '打不开这个目录',
       'err.noBackupDir': '后台没有给出备份目录路径',
       'merge.version': '卡版本号升到 {v}',
@@ -317,6 +318,7 @@ window.__ModuleLoader__.load({
       'merge.bookAdopted': 'Added the missing world book',
       'merge.regexAdded': 'Added {n} regex scripts',
       'merge.extAdded': 'Added {what}',
+      'merge.topSynced': 'Synced the top-level {what}',
       'err.openFolder': 'Could not open that folder',
       'err.noBackupDir': 'The host reported no backup folder',
       'merge.version': 'Card version bumped to {v}',
@@ -1017,6 +1019,12 @@ window.__ModuleLoader__.load({
       if (m) return t('merge.extAdded').replace('{what}', extName(m[1]))
       m = text.match(/^version:(.+)$/)
       if (m) return t('merge.version').replace('{v}', m[1])
+      // The top-level copy of a greeting, brought in line with `data`. Worth
+      // naming rather than hiding: it is the only change a merge makes that the
+      // player never sees, and seeing it here is what says the two copies agreed
+      // before this ran.
+      m = text.match(/^top:(.+)$/)
+      if (m) return t('merge.topSynced').replace('{what}', fieldName(m[1]))
       // Configs saved before the log became tagged still hold these shapes, and
       // `character_book(+3)` is not something to hand a reader.
       m = text.match(/^character_book\(\+(\d+)\)$/)

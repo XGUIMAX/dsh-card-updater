@@ -196,6 +196,18 @@ const diff = (before, after) => before.filter((k) => !after.includes(k))
     report.eq(`${label}: no extension lost`, diff(beforeExt, keysOf(after.data.extensions)), [])
     report.ok(`${label}: the book survived`, Array.isArray(after.data.character_book?.entries))
     report.ok(`${label}: merged in ${took.toFixed(0)} ms`, took < 5000, `${took.toFixed(0)} ms`)
+    // The conversion appends the status entry and the opening's initial values to
+    // the `data` copy of a greeting only, so before a merge the two copies of a
+    // converted card's own greeting already differ. Afterwards they must not.
+    report.eq(
+      `${label}: the two copies of the greeting agree afterwards`,
+      after.payload.first_mes,
+      after.data.first_mes,
+    )
+    // Both spellings of the entry are in use on this machine: cards converted
+    // before the rename carry `StatusPlaceHolderImpl`, later ones `<mvu-status/>`.
+    const entries = String(after.data.first_mes || '').match(/<mvu-status\s*\/>|StatusPlaceHolderImpl/g) || []
+    report.eq(`${label}: exactly one status entry in the greeting`, entries.length, 1)
   }
 }
 

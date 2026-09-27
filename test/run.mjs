@@ -520,6 +520,124 @@ const report = createReport('dsh-card-updater host')
   )
 }
 
+/* --------------------------------------------- MVU conversion artifacts */
+
+{
+  report.group('MVU conversion artifacts')
+  const sb = sandbox('artifacts')
+  const host = loadHost(sb.home)
+
+  const MARKER = '<mvu-status/>'
+  const INITVAR = '<initvar>\n{\n  "a": 1\n}\n</initvar>'
+  // The author's greeting carries a <style> of its own. That is what made the old
+  // "carries machinery on both sides" test decide the two were comparable and hand
+  // the field to the author.
+  const authorGreeting = '开场白正文\n<style>.a{color:red}</style>'
+
+  const minePayload = v2Card({
+    name: 'X MVU版本',
+    first_mes: `${authorGreeting}\n\n${INITVAR}\n${MARKER}`,
+    extensions: {
+      regex_scripts: [
+        {
+          id: 'dsh-mvu-status-view',
+          scriptName: 'MVU 状态视图',
+          findRegex: '/<mvu-status\\s*\\/>/g',
+          replaceString: '```html\nx\n```',
+        },
+        {
+          id: 'dsh-mvu-hide-marker',
+          scriptName: '隐藏模型历史中的状态入口',
+          findRegex: '/\\n*<mvu-status\\s*\\/>/g',
+          replaceString: '',
+        },
+      ],
+    },
+  })
+  // The conversion writes the status entry and the block into `data` only, so a
+  // converted card's top-level copy of its own greeting is the older one.
+  minePayload.first_mes = authorGreeting
+
+  const authorPayload = v2Card({
+    name: 'X',
+    first_mes: `${authorGreeting}\n\n新的一段`,
+    extensions: {
+      regex_scripts: [
+        { scriptName: '正文美化', findRegex: '/x/', replaceString: 'y' },
+        { scriptName: 'HUD 状态面板', findRegex: '/<hud-status\\/>/', replaceString: 'z' },
+        { scriptName: '深度受限', findRegex: '/raw/', replaceString: '', maxDepth: 6 },
+      ],
+    },
+  })
+
+  const merged = host.mergeCards(asLoaded(minePayload), asLoaded(authorPayload), 'full', {
+    preferOriginal: true,
+  })
+  const after = merged.payload.data
+
+  report.ok(
+    'a converted greeting survives an author greeting that also carries markup',
+    String(after.first_mes).includes(MARKER),
+    'the weaker test saw machinery on both sides and gave the field to the author',
+  )
+  report.ok('and keeps the opening initial values', String(after.first_mes).includes('<initvar>'))
+  report.eq(
+    'the top-level greeting is brought in line with data',
+    merged.payload.first_mes,
+    after.first_mes,
+  )
+  report.ok('and that is reported', merged.changed.includes('top:first_mes'))
+
+  // The managed rules, across all three generations of id seen on this machine.
+  report.ok('a managed rule is recognised by the newest id', host.isManagedRule({ id: 'dsh-mvu-status-view' }))
+  report.ok('and by the oldest id', host.isManagedRule({ id: 'mvu-status-view' }))
+  report.ok('and by the middle id', host.isManagedRule({ id: 'mvu-status-hide-marker' }))
+  report.ok('and by name when it carries no id', host.isManagedRule({ scriptName: 'MVU 状态视图' }))
+  report.ok('an ordinary author rule is not managed', !host.isManagedRule({ scriptName: '正文美化' }))
+
+  // An author rule watching another placeholder is what the host's validator
+  // refuses, so it must not be installed even on the permissive setting.
+  const hud = authorPayload.data.extensions.regex_scripts.find((r) => r.scriptName === 'HUD 状态面板')
+  report.ok('an author rule watching <hud-status> is held back', host.looksLikeOutputProtocol(hud))
+  report.ok(
+    'so it is not installed',
+    !after.extensions.regex_scripts.some((r) => r.scriptName === 'HUD 状态面板'),
+  )
+
+  // A depth cap on a copied rule is dropped, the rule itself is not.
+  const capped = after.extensions.regex_scripts.find((r) => r.scriptName === '深度受限')
+  report.ok('a harmless author rule is installed', !!capped)
+  report.eq('and its depth cap is dropped', capped && capped.maxDepth, undefined)
+  report.eq('while the rule itself is intact', capped && capped.findRegex, '/raw/')
+  report.ok('a plain author rule comes across unchanged', after.extensions.regex_scripts.some((r) => r.scriptName === '正文美化'))
+
+  // Variable protocols, including the ones the old pattern missed.
+  for (const text of ['变量输出规则', '[mvu_update]状态更新规则', '变量结构（Zod）', '输出 <UpdateVariable>', '使用 JSON Patch']) {
+    report.ok(`isProtocolEntry: recognises ${text}`, host.isProtocolEntry({ comment: text, content: text }))
+  }
+  report.eq(
+    'isProtocolEntry: ordinary lore is not a protocol',
+    host.isProtocolEntry({ comment: '世界观', content: '这片大陆分为三国，彼此征战百年' }),
+    false,
+  )
+
+  // And the field the protocol protected is still not overwritten.
+  const bookMine = v2Card({
+    name: 'Y MVU版本',
+    character_book: { name: 'b', entries: [{ id: 1, comment: '变量输出规则', content: '用 mvu_submit_update 提交' }] },
+  })
+  const bookAuthor = v2Card({
+    name: 'Y',
+    character_book: { name: 'b', entries: [{ id: 1, comment: '变量输出规则', content: '在回复末尾输出 JSON Patch' }] },
+  })
+  const bookMerged = host.mergeCards(asLoaded(bookMine), asLoaded(bookAuthor), 'full', { preferOriginal: true })
+  report.eq(
+    'a protocol entry the copy holds is not replaced by the author',
+    bookMerged.payload.data.character_book.entries[0].content,
+    '用 mvu_submit_update 提交',
+  )
+}
+
 /* ------------------------------------------------------------ list a folder */
 
 {
