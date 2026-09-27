@@ -212,6 +212,7 @@ window.__ModuleLoader__.load({
       'tools.all': '全部',
       'tools.plainOnly': '只有原卡',
       'tools.mvuOnly': '只有 MVU 版',
+      'tools.presetOnly': '有专用/专属预设',
       'tools.sortAuto': '默认：有更新优先',
       'tools.sortImported': '按导入时间',
       'tools.sortName': '按名称',
@@ -481,6 +482,7 @@ window.__ModuleLoader__.load({
       'tools.all': 'All',
       'tools.plainOnly': 'Original only',
       'tools.mvuOnly': 'MVU only',
+      'tools.presetOnly': 'Ships a preset',
       'tools.sortAuto': 'Default: news first',
       'tools.sortImported': 'By import time',
       'tools.sortName': 'By name',
@@ -2923,6 +2925,11 @@ window.__ModuleLoader__.load({
           // exist: "only original" means no MVU copy is paired with it.
           if (filter === 'plain') return !String((entry.mvu && entry.mvu.path) || '').trim()
           if (filter === 'mvu') return !String((entry.plain && entry.plain.path) || '').trim()
+          // This one is about what the release page offers rather than which
+          // files are wired up. `preset` is one of the rule keys the check folds
+          // into the same list as the download conditions, so it is read from
+          // there — and read as an array, because a string would throw.
+          if (filter === 'preset') return Array.isArray(entry.primary && entry.primary.gates) && entry.primary.gates.includes('preset')
           return true
         })
         .sort((a, b) => {
@@ -3420,6 +3427,7 @@ window.__ModuleLoader__.load({
                   h('option', { value: 'all' }, t('tools.all')),
                   h('option', { value: 'plain' }, t('tools.plainOnly')),
                   h('option', { value: 'mvu' }, t('tools.mvuOnly')),
+                  h('option', { value: 'preset' }, t('tools.presetOnly')),
                 ),
                 h(
                   'select',
