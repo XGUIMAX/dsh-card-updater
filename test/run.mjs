@@ -1020,6 +1020,52 @@ const report = createReport('dsh-card-updater host')
   report.eq('and the list is otherwise clear', Object.keys(after.missing).length, 0)
 }
 
+/* ----------------------------------------------- companion material */
+
+{
+  report.group('companion material folded into the gate list')
+  const sb = sandbox('extras')
+  const host = loadHost(sb.home)
+
+  // The wording this was written for, from the thread that ships the preset.
+  const thread = [
+    '专用预设',
+    '- 如果掉格式严重，把卡里的格式要求缝到预设格式里',
+    '- 如果用哈基米玩遇到道歉破甲失败，推荐用这个专用预设，必须用gemini玩！',
+  ].join('\n')
+  report.eq('a thread shipping a companion preset is reported', host.detectExtras(thread), ['preset'])
+  report.eq('so is the other spelling', host.detectExtras('专属预设在此'), ['preset'])
+
+  // A few characters are allowed between the two halves, because pages word it
+  // their own way.
+  report.eq('a 的 between them still counts', host.detectExtras('专用的预设见下方'), ['preset'])
+  report.eq('so does a 版', host.detectExtras('专属版预设'), ['preset'])
+  report.eq('and a synonym prefix', host.detectExtras('独家预设'), ['preset'])
+  report.eq('and an english one', host.detectExtras('companion preset included'), ['preset'])
+
+  // A bare 预设 is in every SillyTavern thread there is; matching it would mark
+  // every card on the list, which is why the rule needs the prefix.
+  report.eq('a passing mention of 预设 is not', host.detectExtras('建议用预设打开，导入角色卡即可'), [])
+  report.eq('nor is an unrelated section', host.detectExtras('必读：不要开记忆表格的物品表'), [])
+  report.eq('nor a gap that is too wide', host.detectExtras('专用。这里什么都没有。预设入口在别处'), [])
+  report.eq('an empty page reports nothing', host.detectExtras(''), [])
+
+  // The two families stay separate at the rule level, and only meet in the list
+  // the panel draws — that is what keeps the rendering side untouched.
+  report.eq('a preset name is not a download condition', host.detectGates('专用预设在这里'), [])
+  report.eq('and a download condition is not a preset', host.detectExtras('需要密码才能下载'), [])
+  report.eq(
+    'the check merges the two sources into one list',
+    host.detectGates('密码见帖子').concat(host.detectExtras('专用预设')),
+    ['password', 'preset'],
+  )
+  report.eq(
+    'and a page can carry only the preset',
+    host.detectGates('见楼下').concat(host.detectExtras('专属预设')),
+    ['preset'],
+  )
+}
+
 /* --------------------------------------------------------------- self view */
 
 {

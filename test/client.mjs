@@ -132,10 +132,10 @@ function makeCtx() {
   const enKeys = Object.keys(en)
 
   report.eq('both languages define the same number of keys', zhKeys.length, enKeys.length)
-  // The error boundary draws its own message, so at least those two strings have
-  // to resolve in both languages — a crash report that reads "crash.title" is
-  // worse than no report.
-  for (const key of ['crash.title', 'crash.hint']) {
+  // The host hands over rule keys and the panel resolves them, so every key the
+  // host can produce needs a label. `gate.<key>` is built from a variable, and
+  // `preset` is the one the companion-material rule adds to that list.
+  for (const key of ['crash.title', 'crash.hint', 'gate.preset']) {
     report.ok(`${key} resolves in both languages`, !!zh[key] && !!en[key], '')
   }
   report.eq(
