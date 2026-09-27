@@ -522,6 +522,27 @@ function makeCtx() {
     const said = JSON.stringify(row)
     report.ok('the download line is in the row', said.includes('gate.password'), '')
     report.ok('and so is the companion line', said.includes('extra.preset'), '')
+
+    // Build it *and* render it. An element that is created without complaint can
+    // still throw when React walks it, and that throw is what a user sees as a
+    // blank panel — creating the element alone would not have caught it.
+    for (const [label, primary] of [
+      ['gates only', { url: 'https://x.invalid', sig: 'a', gates: ['password'] }],
+      ['extras only', { url: 'https://x.invalid', sig: 'a', extras: ['preset'] }],
+      ['both lists', { url: 'https://x.invalid', sig: 'a', gates: ['password', 'paid', 'discord'], extras: ['preset'] }],
+      ['strings where arrays belong', { url: 'https://x.invalid', sig: 'a', gates: 'password', extras: 'preset' }],
+      ['a rename on top', { url: 'https://x.invalid', sig: 'a', gates: ['discord'], extras: ['preset'], renamedFrom: 'old', title: 'new' }],
+    ]) {
+      let threw = ''
+      let rendered = ''
+      try {
+        rendered = renderToString(hint({ primary }))
+      } catch (e) {
+        threw = e && e.message ? e.message : String(e)
+      }
+      report.eq(`the row really renders with ${label}`, threw, '')
+      report.ok(`  and comes out as markup with ${label}`, rendered.includes('dcu-chip'), '')
+    }
   }
 }
 
