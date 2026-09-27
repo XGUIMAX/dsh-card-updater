@@ -132,6 +132,13 @@ function makeCtx() {
   const enKeys = Object.keys(en)
 
   report.eq('both languages define the same number of keys', zhKeys.length, enKeys.length)
+  // The host reports companion material by rule key, so the panel has to be able
+  // to resolve every key it can produce. `extra.<key>` is the second family built
+  // from a variable, alongside `gate.<key>`.
+  for (const key of ['preset']) {
+    report.ok(`extra.${key} resolves in both languages`, zh['extra.' + key] && en['extra.' + key], '')
+  }
+  report.eq('and the line it belongs to has a name', typeof zh['primary.extra'], 'string')
   report.eq(
     'every Chinese key has an English one',
     zhKeys.filter((k) => !Object.prototype.hasOwnProperty.call(en, k)),
@@ -510,9 +517,11 @@ function makeCtx() {
       report.eq(`a card row renders with ${label}`, threw, '')
     }
 
-    // And the row that carries the download line actually says it.
-    const row = hint({ primary: { url: 'https://x.invalid', sig: 'a', gates: ['password'] } })
-    report.ok('the download line is in the row', JSON.stringify(row).includes('gate.password'), '')
+    // And the row that carries both lines actually says both things.
+    const row = hint({ primary: { url: 'https://x.invalid', sig: 'a', gates: ['password'], extras: ['preset'] } })
+    const said = JSON.stringify(row)
+    report.ok('the download line is in the row', said.includes('gate.password'), '')
+    report.ok('and so is the companion line', said.includes('extra.preset'), '')
   }
 }
 
