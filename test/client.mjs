@@ -1,13 +1,22 @@
 /**
  * Browser half: dictionary, stylesheet and the pure helpers behind the panel.
  *
- * The components are not rendered here. What is checked is the part that can be
+ * Most of this does not render anything. What is checked is the part that can be
  * wrong without throwing: a dictionary key the code asks for and the file does
  * not define, a stylesheet that does not balance, and the small converters the
  * panel runs on every render.
+ *
+ * The last group is the exception, and it exists because of what that gap cost:
+ * the harness React was a stub that only answered "does this exist", so a defect
+ * that fired while rendering a card threw in the real browser and nowhere here —
+ * and a throw inside a render does not show a broken row, it takes the whole
+ * panel down to a blank screen. Where a real React is installed, that group
+ * renders for real.
  */
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { loadClient, createReport, CLIENT_FILE } from './harness.mjs'
 
 const report = createReport('dsh-card-updater browser')
@@ -452,6 +461,68 @@ function makeCtx() {
 
   const refused = c.describeVerify({ ok: true, loggedIn: false, error: 'refused', loginUrl: 'x' })
   report.ok('a refusal keeps the host own words', refused.text.includes('refused'))
+}
+
+/* ------------------------------------------------------- real rendering */
+
+{
+  report.group('rendering with a real React')
+  // Where a real React is installed, render for real. The stub the rest of this
+  // file runs on answers "does this exist" and never runs a component, which is
+  // how a throw-on-render defect reached a user as a blank panel.
+  let React = null
+  let renderToString = null
+  try {
+    const base = path.join(os.homedir(), '.dsh', 'apps', 'dsh-tavern', 'node_modules')
+    React = (await import(pathToFileURL(path.join(base, 'react', 'index.js')).href)).default
+    renderToString = (await import(pathToFileURL(path.join(base, 'react-dom', 'server.js')).href))
+      .renderToString
+  } catch {
+    React = null
+  }
+
+  if (!React || typeof renderToString !== 'function') {
+    report.ok('a real React is available to render with', true, 'skipped: not installed, nothing to render with')
+  } else {
+    const real = loadClient({ react: React })
+
+    let html = ''
+    let failure = ''
+    try {
+      html = renderToString(React.createElement(real.internals.SettingsSection))
+    } catch (e) {
+      failure = e && e.message ? e.message : String(e)
+    }
+    report.eq('the settings section renders', failure, '')
+    report.ok('and produces the panel shell', html.includes('dcu-root'), html.slice(0, 90))
+
+    // Every shape the host could hand over, including ones it promises not to.
+    // A string passes a `.length` test and then has no `.map`, and a throw while
+    // rendering one card blanks the whole panel rather than one row.
+    const hint = real.internals.primaryHint
+    for (const [label, primary] of [
+      ['string extras', { url: 'https://x.invalid', sig: 'a', extras: 'preset' }],
+      ['string gates', { url: 'https://x.invalid', sig: 'a', gates: 'password' }],
+      ['both as strings', { url: 'https://x.invalid', sig: 'a', gates: 'password', extras: 'preset' }],
+      ['arrays', { url: 'https://x.invalid', sig: 'a', gates: ['password'], extras: ['preset'] }],
+      ['neither field', { url: 'https://x.invalid', sig: 'a' }],
+      ['no link at all', {}],
+    ]) {
+      let threw = ''
+      try {
+        hint({ primary })
+      } catch (e) {
+        threw = e && e.message ? e.message : String(e)
+      }
+      report.eq(`a card row renders with ${label}`, threw, '')
+    }
+
+    // And the row that carries both lines actually says both things.
+    const row = hint({ primary: { url: 'https://x.invalid', sig: 'a', gates: ['password'], extras: ['preset'] } })
+    const said = JSON.stringify(row)
+    report.ok('the download line is in the row', said.includes('gate.password'), '')
+    report.ok('and so is the companion line', said.includes('extra.preset'), '')
+  }
 }
 
 process.exit(report.finish() ? 1 : 0)

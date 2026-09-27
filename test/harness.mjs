@@ -165,9 +165,10 @@ export function createDom() {
  * The factory is rewritten so its last statement hands back every name it
  * declares under `__test`. That is the only addition to the shipped source, and
  * it is made to the text in memory, never to the file.
+ * @param {object} [options] - `{react}` to render with a real React instead of the stub.
  * @returns {{client: object, internals: Record<string, unknown>, source: string, dom: object}} the module and its internals.
  */
-export function loadClient() {
+export function loadClient(options) {
   const raw = fs.readFileSync(CLIENT_FILE, 'utf8')
   const names = declaredNames(raw)
   const exposed = names
@@ -192,7 +193,10 @@ export function loadClient() {
   new Function('window', 'document', 'MutationObserver', patched)(fakeWindow, dom.document, dom.MutationObserver)
   if (!captured || typeof captured.factory !== 'function') throw new Error('client half did not register itself')
 
-  const react = {
+  // A real React can be supplied so a component can actually be rendered to a
+  // string. The stub above only answers "does this exist", which is why a defect
+  // that only fires while rendering a card stayed invisible to this suite.
+  const react = (options && options.react) || {
     createElement: (type, props, ...children) => ({ type, props, children }),
     useState: (initial) => [typeof initial === 'function' ? initial() : initial, () => {}],
     useEffect: () => {},

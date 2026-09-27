@@ -1364,19 +1364,26 @@ window.__ModuleLoader__.load({
               : ''),
         })
       }
-      if (state.gates && state.gates.length) {
+      // Both lists arrive as arrays of rule keys from the host, and both are
+      // checked that way rather than for truthiness. A string passes a `.length`
+      // test and then has no `.map`, which throws while rendering a card — and a
+      // throw here does not show a broken row, it takes the whole panel down with
+      // a blank screen.
+      const gates = Array.isArray(state.gates) ? state.gates : []
+      if (gates.length) {
         bits.push({
           kind: 'info',
-          text: t('primary.gated') + '：' + state.gates.map((g) => t('gate.' + g)).join(' · '),
+          text: t('primary.gated') + '：' + gates.map((g) => t('gate.' + g)).join(' · '),
         })
       }
       // Companion material is reported on its own line rather than folded into
       // the download conditions: the page is not withholding anything, it is
       // handing out something extra, and the two would read as one problem.
-      if (state.extras && state.extras.length) {
+      const extras = Array.isArray(state.extras) ? state.extras : []
+      if (extras.length) {
         bits.push({
           kind: 'info',
-          text: t('primary.extra') + '：' + state.extras.map((e) => t('extra.' + e)).join(' · '),
+          text: t('primary.extra') + '：' + extras.map((e) => t('extra.' + e)).join(' · '),
         })
       }
       if (state.renamedFrom && state.title) {
