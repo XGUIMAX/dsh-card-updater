@@ -204,6 +204,14 @@ export function loadClient(options) {
     useMemo: (fn) => fn(),
     useRef: (value) => ({ current: value }),
     Fragment: 'Fragment',
+    // The panel's error boundary is a class component, so the stub needs a base
+    // class that can be extended even though nothing here ever renders it.
+    Component: class {
+      constructor(props) {
+        this.props = props || {}
+        this.state = {}
+      }
+    },
   }
   const client = captured.factory((id) => {
     if (id === 'react') return react

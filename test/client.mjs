@@ -132,13 +132,12 @@ function makeCtx() {
   const enKeys = Object.keys(en)
 
   report.eq('both languages define the same number of keys', zhKeys.length, enKeys.length)
-  // The host reports companion material by rule key, so the panel has to be able
-  // to resolve every key it can produce. `extra.<key>` is the second family built
-  // from a variable, alongside `gate.<key>`.
-  for (const key of ['preset']) {
-    report.ok(`extra.${key} resolves in both languages`, zh['extra.' + key] && en['extra.' + key], '')
+  // The error boundary draws its own message, so at least those two strings have
+  // to resolve in both languages — a crash report that reads "crash.title" is
+  // worse than no report.
+  for (const key of ['crash.title', 'crash.hint']) {
+    report.ok(`${key} resolves in both languages`, !!zh[key] && !!en[key], '')
   }
-  report.eq('and the line it belongs to has a name', typeof zh['primary.extra'], 'string')
   report.eq(
     'every Chinese key has an English one',
     zhKeys.filter((k) => !Object.prototype.hasOwnProperty.call(en, k)),
@@ -517,21 +516,20 @@ function makeCtx() {
       report.eq(`a card row renders with ${label}`, threw, '')
     }
 
-    // And the row that carries both lines actually says both things.
-    const row = hint({ primary: { url: 'https://x.invalid', sig: 'a', gates: ['password'], extras: ['preset'] } })
-    const said = JSON.stringify(row)
-    report.ok('the download line is in the row', said.includes('gate.password'), '')
-    report.ok('and so is the companion line', said.includes('extra.preset'), '')
+    // And the row that carries the download line actually says it.
+    const row = hint({ primary: { url: 'https://x.invalid', sig: 'a', gates: ['password'] } })
+    report.ok('the download line is in the row', JSON.stringify(row).includes('gate.password'), '')
 
     // Build it *and* render it. An element that is created without complaint can
     // still throw when React walks it, and that throw is what a user sees as a
     // blank panel — creating the element alone would not have caught it.
     for (const [label, primary] of [
       ['gates only', { url: 'https://x.invalid', sig: 'a', gates: ['password'] }],
-      ['extras only', { url: 'https://x.invalid', sig: 'a', extras: ['preset'] }],
-      ['both lists', { url: 'https://x.invalid', sig: 'a', gates: ['password', 'paid', 'discord'], extras: ['preset'] }],
-      ['strings where arrays belong', { url: 'https://x.invalid', sig: 'a', gates: 'password', extras: 'preset' }],
-      ['a rename on top', { url: 'https://x.invalid', sig: 'a', gates: ['discord'], extras: ['preset'], renamedFrom: 'old', title: 'new' }],
+      ['three gates', { url: 'https://x.invalid', sig: 'a', gates: ['password', 'paid', 'discord'] }],
+      ['a string where an array belongs', { url: 'https://x.invalid', sig: 'a', gates: 'password' }],
+      ['no gates at all', { url: 'https://x.invalid', sig: 'a' }],
+      ['a rename on top', { url: 'https://x.invalid', sig: 'a', gates: ['discord'], renamedFrom: 'old', title: 'new' }],
+      ['a failed check', { url: 'https://x.invalid', error: 'boom' }],
     ]) {
       let threw = ''
       let rendered = ''
@@ -543,6 +541,34 @@ function makeCtx() {
       report.eq(`the row really renders with ${label}`, threw, '')
       report.ok(`  and comes out as markup with ${label}`, rendered.includes('dcu-chip'), '')
     }
+
+    // The boundary is what stands between a throw and a blank panel.
+    //
+    // Its contract is checked directly rather than by rendering through it:
+    // `renderToString` rethrows on error instead of consulting a boundary, which
+    // is a server-rendering behaviour — the browser renders on the client, and
+    // that is where these methods get called.
+    const boundary = real.internals.PanelBoundary
+    report.eq('the panel ships an error boundary', typeof boundary, 'function')
+
+    const derived = boundary.getDerivedStateFromError(new Error('合成故障'))
+    report.ok('a thrown error becomes state', !!derived && !!derived.error, JSON.stringify(derived))
+    report.eq('and the message is the one thrown', derived.error.message, '合成故障')
+
+    const instance = new boundary({ children: null })
+    report.eq('with no error it draws its children', instance.render(), null)
+
+    instance.state = derived
+    let drawn = ''
+    let boundaryThrew = ''
+    try {
+      drawn = renderToString(instance.render())
+    } catch (e) {
+      boundaryThrew = e && e.message ? e.message : String(e)
+    }
+    report.eq('and with state it draws without throwing', boundaryThrew, '')
+    report.ok('it names the failure rather than going blank', drawn.includes('crash.title'), drawn.slice(0, 110))
+    report.ok('and shows the thrown text', drawn.includes('合成故障'), '')
   }
 }
 

@@ -1020,51 +1020,6 @@ const report = createReport('dsh-card-updater host')
   report.eq('and the list is otherwise clear', Object.keys(after.missing).length, 0)
 }
 
-/* ----------------------------------------------- companion material */
-
-{
-  report.group('companion material on a release page')
-  const sb = sandbox('extras')
-  const host = loadHost(sb.home)
-
-  // The wording this was written for, from the thread that ships the preset.
-  const thread = [
-    '专用预设',
-    '- 如果掉格式严重，把卡里的格式要求缝到预设格式里',
-    '- 如果用哈基米玩遇到道歉破甲失败，推荐用这个专用预设，必须用gemini玩！',
-  ].join('\n')
-  report.eq('a thread shipping a companion preset is reported', host.detectExtras(thread), ['preset'])
-  report.eq('so is the other spelling', host.detectExtras('专属预设在此'), ['preset'])
-
-  // A bare 预设 is in every SillyTavern thread there is; matching it would mark
-  // every card on the list, which is why the rule names the pair of characters
-  // that make it specific.
-  report.eq('a passing mention of 预设 is not', host.detectExtras('建议用预设打开，导入角色卡即可'), [])
-  report.eq('nor is an unrelated section', host.detectExtras('必读：不要开记忆表格的物品表'), [])
-  report.eq('an empty page reports nothing', host.detectExtras(''), [])
-
-  // The two families stay apart: a download condition is something withheld, a
-  // companion preset is something extra, and reporting one as the other would
-  // point the reader at the wrong remedy.
-  report.eq('download conditions are still their own thing', host.detectGates('需要密码才能下载'), ['password'])
-  report.eq('and a preset name is not a download condition', host.detectGates('专用预设在这里'), [])
-  report.eq(
-    'a page can carry both',
-    host.detectGates('密码见帖子').concat(host.detectExtras('专用预设')),
-    ['password', 'preset'],
-  )
-
-  // The field travels with the entry the same way the download conditions do.
-  const kept = host.normalizeCfg({
-    cards: [{ id: 'a', label: 'A', plain: { path: 'p.json' }, primary: { url: 'u', extras: ['preset'] } }],
-  }).cards[0]
-  report.eq('normalizeCfg keeps the field', kept.primary.extras, ['preset'])
-  const blank = host.normalizeCfg({
-    cards: [{ id: 'b', label: 'B', plain: { path: 'p.json' }, primary: { url: 'u' } }],
-  }).cards[0]
-  report.eq('and defaults it to an empty list', blank.primary.extras, [])
-}
-
 /* --------------------------------------------------------------- self view */
 
 {

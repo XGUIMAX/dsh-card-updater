@@ -137,8 +137,8 @@ window.__ModuleLoader__.load({
       'primary.renamed': '作者改过贴子名，链接仍是同一个（现在叫 {to}）',
       'primary.current': '未发现比本地更新的版本',
       'primary.gated': '有下载条件',
-      'primary.extra': '帖子附带',
-      'extra.preset': '专用预设',
+      'crash.title': '面板渲染失败',
+      'crash.hint': '详情见浏览器控制台（F12 → Console）。',
       'primary.error': '检索失败',
       'primary.notset': '未配置主要链接',
       'btn.open': '打开',
@@ -406,8 +406,8 @@ window.__ModuleLoader__.load({
       'primary.renamed': 'The author renamed this thread; the link is unchanged (now: {to})',
       'primary.current': 'Nothing newer than the local card',
       'primary.gated': 'Download conditions',
-      'primary.extra': 'Also ships',
-      'extra.preset': 'companion preset',
+      'crash.title': 'The panel could not be drawn',
+      'crash.hint': 'See the browser console (F12 → Console) for the details.',
       'primary.error': 'watch failed',
       'primary.notset': 'no release link',
       'btn.open': 'Open',
@@ -1364,26 +1364,15 @@ window.__ModuleLoader__.load({
               : ''),
         })
       }
-      // Both lists arrive as arrays of rule keys from the host, and both are
-      // checked that way rather than for truthiness. A string passes a `.length`
-      // test and then has no `.map`, which throws while rendering a card — and a
-      // throw here does not show a broken row, it takes the whole panel down with
-      // a blank screen.
+      // Checked as an array rather than for truthiness. A string passes a
+      // `.length` test and then has no `.map`, which throws while rendering this
+      // card — and a throw in a render takes the whole panel down rather than
+      // breaking one row.
       const gates = Array.isArray(state.gates) ? state.gates : []
       if (gates.length) {
         bits.push({
           kind: 'info',
           text: t('primary.gated') + '：' + gates.map((g) => t('gate.' + g)).join(' · '),
-        })
-      }
-      // Companion material is reported on its own line rather than folded into
-      // the download conditions: the page is not withholding anything, it is
-      // handing out something extra, and the two would read as one problem.
-      const extras = Array.isArray(state.extras) ? state.extras : []
-      if (extras.length) {
-        bits.push({
-          kind: 'info',
-          text: t('primary.extra') + '：' + extras.map((e) => t('extra.' + e)).join(' · '),
         })
       }
       if (state.renamedFrom && state.title) {
@@ -3607,8 +3596,56 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /**
+     * A throw while rendering takes the whole panel down: React aborts the tree
+     * and the section comes out blank, which reads as "the plugin is broken" with
+     * nothing to go on. That is exactly how it went twice, and both times the
+     * crash had to be guessed at from the outside.
+     *
+     * This wrapper turns the blank screen into the message itself and puts the
+     * stack in the console. It is deliberately the outermost thing this half
+     * renders and it draws plain markup with inline styles, because whatever the
+     * crash was it has to still be able to draw.
+     */
+    class PanelBoundary extends react.Component {
+      constructor(props) {
+        super(props)
+        this.state = { error: null }
+      }
+
+      static getDerivedStateFromError(error) {
+        return { error }
+      }
+
+      componentDidCatch(error, info) {
+        // eslint-disable-next-line no-console
+        console.error('[dsh-card-updater] 面板渲染失败:', error, info && info.componentStack)
+      }
+
+      render() {
+        const error = this.state.error
+        if (!error) return this.props.children
+        const text = error && error.message ? error.message : String(error)
+        return h(
+          'div',
+          { style: { padding: '18px 20px', font: 'inherit', lineHeight: 1.7 } },
+          h('div', { style: { fontWeight: 700, marginBottom: 6 } }, t('crash.title')),
+          h('div', { style: { opacity: 0.85, wordBreak: 'break-word' } }, text),
+          h('div', { style: { opacity: 0.6, marginTop: 10, fontSize: '12px' } }, t('crash.hint')),
+        )
+      }
+    }
+
+    /**
+     * @param {object} props - `children` to draw, or a message when they cannot be.
+     * @returns {object} the children, guarded.
+     */
+    function Guarded({ children }) {
+      return h(PanelBoundary, null, children)
+    }
+
     function SettingsSection() {
-      return h(Panel, null)
+      return h(Guarded, null, h(Panel, null))
     }
 
     function apply(ctx) {
