@@ -2975,6 +2975,11 @@ window.__ModuleLoader__.load({
           // into the same list as the download conditions, so it is read from
           // there — and read as an array, because a string would throw.
           if (filter === 'preset') return Array.isArray(entry.primary && entry.primary.gates) && entry.primary.gates.includes('preset')
+          // dsh-filter-fix —— 与 preset 同源（都读 primary.gates），只是键不同：
+          //   preset      = 作者随卡附带的预设
+          //   recommended = 作者建议另找一份来搭配
+          // 少了这一行，选它就会落到下面的 return true，于是显示全部卡。
+          if (filter === 'recommended') return Array.isArray(entry.primary && entry.primary.gates) && entry.primary.gates.includes('recommended')
           return true
         })
         .sort((a, b) => {

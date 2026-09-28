@@ -600,4 +600,38 @@ report.ok('degrades quietly when the peer is absent', source.includes('setOnline
 /* 样式：复用面板已有的类前缀，不新增一套。 */
 report.ok('reuses the dcu- prefix for its styles', source.includes('.dcu-peer'))
 report.ok('keeps the dot styles in the same block', source.includes('.dcu-peer .dot.ok') && source.includes('.dcu-peer .dot.bad'))
+
+/* ------------------------------------------------- dsh-filter-test
+   筛选：下拉里的每个 option 都必须有对应的过滤分支。
+   本组用例的由来：加「推荐/建议预设」时只加了 option、漏了分支，
+   于是选它落到默认 return true，显示全部卡 —— 而当时一条测试都没覆盖筛选。
+   所以这里除了断言具体行为，还做一次"成对"的结构检查。 */
+
+report.group('dsh-filter-test: every filter option has a branch')
+
+/* 从源码提取下拉的 option 值与过滤分支，做集合比较。 */
+/* 只取【筛选】那个 select 里的 option。原先用全文匹配，把排序下拉的
+   auto / imported / name 也算了进来，于是"每个选项都要有分支"这条永远不成立。 */
+const filterSelect = (source.match(/value: filter,[\s\S]{0,800}?\n\s*\),/) || [''])[0]
+const optionVals = [...filterSelect.matchAll(/h\('option', \{ value: '([a-z]+)' \}/g)].map((m) => m[1])
+const branchVals = [...source.matchAll(/if \(filter === '([a-z]+)'\)/g)].map((m) => m[1])
+const needBranch = optionVals.filter((v) => v !== 'all')
+
+report.ok('finds the filter options', needBranch.length >= 3, needBranch.join(','))
+report.ok('recommended is offered in the dropdown', optionVals.includes('recommended'), optionVals.join(','))
+report.ok('recommended has a matching filter branch', branchVals.includes('recommended'), branchVals.join(','))
+report.eq('no option is left without a branch', needBranch.filter((v) => !branchVals.includes(v)), [])
+
+/* 具体行为：preset 与 recommended 各自只认自己的 gate key。 */
+const gatesOf = (gates) => ({ primary: { gates } })
+const passes = (filterVal, entry) => {
+  if (filterVal === 'preset') return Array.isArray(entry.primary && entry.primary.gates) && entry.primary.gates.includes('preset')
+  if (filterVal === 'recommended') return Array.isArray(entry.primary && entry.primary.gates) && entry.primary.gates.includes('recommended')
+  return true
+}
+report.ok('preset filter accepts a preset gate', passes('preset', gatesOf(['discord', 'preset'])))
+report.ok('preset filter rejects a recommended-only gate', !passes('preset', gatesOf(['recommended'])))
+report.ok('recommended filter accepts a recommended gate', passes('recommended', gatesOf(['discord', 'recommended'])))
+report.ok('recommended filter rejects a preset-only gate', !passes('recommended', gatesOf(['discord', 'preset'])))
+report.ok('both gates together pass both filters', passes('preset', gatesOf(['preset', 'recommended'])) && passes('recommended', gatesOf(['preset', 'recommended'])))
 process.exit(report.finish() ? 1 : 0)
