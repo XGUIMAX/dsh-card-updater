@@ -587,6 +587,14 @@ window.__ModuleLoader__.load({
       '.dcu-chip.ok{color:var(--dsw-alias-state-success-primary);border-color:var(--dsw-alias-state-success-primary)}',
       '.dcu-chip.warn{color:var(--dsw-alias-state-warn-primary);border-color:var(--dsw-alias-state-warn-primary)}',
       '.dcu-chip.bad{color:var(--dsw-alias-state-error-primary);border-color:var(--dsw-alias-state-error-primary)}',
+      // dsh-peer-link：对端插件状态点
+      '.dcu-peer{display:inline-flex;align-items:center;gap:5px;text-decoration:none}',
+      '.dcu-peer .dot{font-size:9px;line-height:1}',
+      '.dcu-peer .dot.ok{color:var(--dsw-alias-state-success-primary)}',
+      '.dcu-peer .dot.bad{color:var(--dsw-alias-state-error-primary)}',
+      '.dcu-peer .dot.wait{color:var(--dsw-alias-text-secondary)}',
+      // dsh-peer-state：状态文字比圆点更明确，且不依赖颜色辨识
+      '.dcu-peer .state{font-size:10px;opacity:.75;margin-left:1px}',
       // Version tag next to the update button. Monospace keeps the digits the
       // same width as the version the button itself prints.
       '.dcu-ver{font-family:ui-monospace,Consolas,monospace;letter-spacing:.02em;color:var(--dsw-alias-label-primary)}',
@@ -696,6 +704,39 @@ window.__ModuleLoader__.load({
     const INDEX_LOGIN = INDEX_SITE + '/login'
 
     /** Where this plugin lives; the update button sends the browser here. */
+    /* dsh-peer-link —— 对端插件状态按钮：错题库宿主半在跑就显示绿点，否则红点并可点击前往仓库下载。 */
+    const PEER = {
+      base: '/dsh-wrongbook',
+      url: 'https://github.com/XGUIMAX/dsh-wrongbook',
+      name: '错题库',
+    }
+    function PeerLink() {
+      const [online, setOnline] = useState(null)
+      useEffect(() => {
+        let alive = true
+        const probe = () => {
+          fetch(PEER.base + '/state', { headers: { accept: 'application/json' } })
+            .then((res) => { if (alive) setOnline(res.ok) })
+            .catch(() => { if (alive) setOnline(false) })
+        }
+        probe()
+        const timer = setInterval(probe, 15000)
+        return () => { alive = false; clearInterval(timer) }
+      }, [])
+      const ok = online === true
+      const hint = ok ? PEER.name + ' 已连接' : (online === null ? '正在检测' + PEER.name + '…' : '未链接到' + PEER.name + '，请点击进行下载')
+      return h('a', {
+        className: 'dcu-btn dcu-peer',
+        href: PEER.url,
+        target: '_blank',
+        rel: 'noreferrer',
+        title: hint,
+      },
+        h('span', { className: 'dot ' + (ok ? 'ok' : online === null ? 'wait' : 'bad') }, '●'),
+        PEER.name,
+        h('span', { className: 'state' }, ok ? '已连接' : (online === null ? '检测中' : '未连接')),
+      )
+    }
     const REPO_URL = 'https://github.com/XGUIMAX/dsh-card-updater'
 
     /**
@@ -3234,6 +3275,7 @@ window.__ModuleLoader__.load({
             h(
               'div',
               { className: 'dcu-header-actions' },
+      h(PeerLink),
               // The plugin's own version block leads the header: the number this
               // copy is running and whether it is current, neither of which is
               // about the cards below. A separator keeps the two kinds of action
