@@ -572,4 +572,32 @@ function makeCtx() {
   }
 }
 
+
+/* ------------------------------------------------- dsh-verify-peer：对端按钮（错题库） */
+
+report.group('dsh-verify-peer: peer link to the wrongbook')
+
+/* 组件本体与调用点都在。少了任一条，功能就不成立。 */
+report.ok('defines a PeerLink component', /function PeerLink\s*\(/.test(source))
+report.ok('renders it once in the header', (source.match(/h\(PeerLink\)/g) || []).length === 1)
+
+/* 探测端点必须是错题库自己的路由前缀 —— 写错了只会一直显示未连接。 */
+report.ok('probes the wrongbook state route', source.includes("'/dsh-wrongbook'") && source.includes("PEER.base + '/state'"))
+
+/* 三态齐备。缺任何一态，某一种实际状态就会被显示成另一种。 */
+report.ok('has the connected state', source.includes("'已连接'"))
+report.ok('has the checking state', source.includes("'检测中'"))
+report.ok('has the disconnected state', source.includes("'未连接'"))
+
+/* 未连接时的引导语与跳转目标。 */
+report.ok('points at the wrongbook repo', source.includes('github.com/XGUIMAX/dsh-wrongbook'))
+report.ok('tells the reader how to get it', source.includes('未链接到'))
+report.ok('states the 15s recheck interval', source.includes('15000'))
+
+/* 静默降级：对方没装时不能报错或卡住。 */
+report.ok('degrades quietly when the peer is absent', source.includes('setOnline(false)'))
+
+/* 样式：复用面板已有的类前缀，不新增一套。 */
+report.ok('reuses the dcu- prefix for its styles', source.includes('.dcu-peer'))
+report.ok('keeps the dot styles in the same block', source.includes('.dcu-peer .dot.ok') && source.includes('.dcu-peer .dot.bad'))
 process.exit(report.finish() ? 1 : 0)
