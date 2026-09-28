@@ -1053,6 +1053,31 @@ const report = createReport('dsh-card-updater host')
   // The two families stay separate at the rule level, and only meet in the list
   // the panel draws — that is what keeps the rendering side untouched.
   report.eq('a preset name is not a download condition', host.detectGates('专用预设在这里'), [])
+
+/* --- dsh-recommend-preset：推荐/建议预设，与「随卡附带」分开 ---
+   两者的语义不同：上面那条是作者把预设塞进压缩包，这条是作者建议你另找一份。
+   混在一个标记里，看的人不知道该去取什么。 */
+report.group('a suggested preset is kept apart from a shipped one')
+report.eq('建议使用预设 is a suggestion', host.detectExtras('建议使用预设开始'), ['recommended'])
+report.eq('推荐预设 is too', host.detectExtras('推荐预设见附件'), ['recommended'])
+report.eq('an 使用的 in between still counts', host.detectExtras('推荐使用的预设'), ['recommended'])
+report.eq('so does 建议搭配', host.detectExtras('建议搭配预设开始'), ['recommended'])
+report.eq('a modifier in between is fine', host.detectExtras('推荐使用通用预设'), ['recommended'])
+report.eq('and a pointer', host.detectExtras('建议搭配下面那个预设'), ['recommended'])
+report.eq('and a bare 配套', host.detectExtras('推荐配套预设'), ['recommended'])
+report.eq('an english spelling', host.detectExtras('recommended preset'), ['recommended'])
+report.eq('recommended preset', host.detectExtras('推荐 preset'), ['recommended'])
+
+report.eq('不推荐 is not a suggestion', host.detectExtras('不推荐这个预设'), [])
+report.eq('neither is 不建议', host.detectExtras('不建议使用预设'), [])
+report.eq('a bare 预设 without a verb or pointer is still not', host.detectExtras('建议用预设打开，导入角色卡即可'), [])
+report.eq('a sentence break stops it', host.detectExtras('推荐先读说明。预设在这'), [])
+report.eq('and a password is not a suggestion', host.detectExtras('建议使用密码解压'), [])
+
+report.eq('the two can appear together', host.detectExtras('专属预设见压缩包，另外推荐使用通用预设'), ['preset', 'recommended'])
+report.eq('a shipped one alone stays preset', host.detectExtras('本卡另附专用预设，无需再找'), ['preset'])
+report.eq('a suggested one alone stays recommended', host.detectExtras('推荐预设：创世回廊v0.7.2'), ['recommended'])
+
   report.eq('and a download condition is not a preset', host.detectExtras('需要密码才能下载'), [])
   report.eq(
     'the check merges the two sources into one list',
