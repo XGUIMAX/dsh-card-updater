@@ -1078,6 +1078,26 @@ report.eq('nor does a passing mention', host.detectPresetVersion('建议用预�
 report.eq('a preset with no version says nothing', host.detectPresetVersion('专属预设'), '')
 report.eq('and neither does an unrelated number', host.detectPresetVersion('预设体系说明'), '')
 
+/* --- 预设文件自己的名字里有版本 ---
+   贴子只是"提到"预设（「专属预设v6」是一句话，不是文件）。读者手上真正有的是他
+   导入的那份下载，版本就写在文件名里。所以这一组读文件名，而不是读贴子。 */
+report.group('a preset file carries its version in its name')
+for (const [file, want] of [
+  ['ny-gemini-v6.json', '6'],
+  ['命定·黄昏 Prime-1.9.json', '1.9'],
+  ['创世回廊v0.7.2 - 星月夜 (1).json', '0.7.2'],
+  ['专用预设 - 0.7.2 恢复防八股.json', '0.7.2'],
+  ['推荐使用此预设 - 0.7.2 防八股修复 (1).json', '0.7.2'],
+  ['C:/x/y/ny-gemini-v5_1.json', '5.1'],
+]) {
+  report.eq(`「${file}」→ ${want}`, host.presetVersionOf(file), want)
+}
+// 取名字里最后一个版本样的片段：名字常以它服务的卡开头（创世回廊v0.7.2），
+// 预设自己的版本在尾巴上。末尾的 (1) 是下载重名标记，不是版本的一部分。
+report.eq('a name with no version says nothing', host.presetVersionOf('some-preset.json'), '')
+report.eq('nor does a name that is just the word', host.presetVersionOf('专属预设.json'), '')
+report.eq('an empty slot says nothing', host.presetVersionOf(''), '')
+
 /* --- dsh-recommend-preset：推荐/建议预设，与「随卡附带」分开 ---
    两者的语义不同：上面那条是作者把预设塞进压缩包，这条是作者建议你另找一份。
    混在一个标记里，看的人不知道该去取什么。 */
