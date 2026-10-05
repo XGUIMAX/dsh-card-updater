@@ -236,7 +236,7 @@ window.__ModuleLoader__.load({
       'err.bridge': '无法连接后台：卡片更新器插件可能未加载完成，稍后重试。',
       'pick.title': '选择卡片文件',
       'pick.up': '上一层',
-      'pick.explorer': '打开资源管理器',
+      'pick.explorer': '在资源管理器里查看',
       'pick.use': '用这个路径',
       'pick.dir': '目录',
       'pick.file': '文件',
@@ -249,6 +249,7 @@ window.__ModuleLoader__.load({
       'pick.go': '转到',
       'pick.placeholder': '直接输入路径，例如 D:\\备份 或 D:',
       'pick.choose': '选择此文件',
+      'pick.hint': '点文件名即可选中，也可以直接在上面输入完整路径。',
       'err.list': '读取目录失败',
       'restore.title': '还原到某个备份',
       'restore.count': '共 {n} 份备份 · 合计 {size} · 每个文件保留最近 5 份',
@@ -514,7 +515,8 @@ window.__ModuleLoader__.load({
       'err.bridge': 'Cannot reach the host half yet; retry in a moment.',
       'pick.title': 'Pick a card file',
       'pick.up': 'Up',
-      'pick.explorer': 'Open in Explorer',
+      'pick.explorer': 'View in file manager',
+      'pick.hint': 'Click a file name to pick it, or type the full path above.',
       'pick.use': 'Use this path',
       'pick.dir': 'dir',
       'pick.file': 'file',
@@ -2653,9 +2655,20 @@ window.__ModuleLoader__.load({
                         'span',
                         {
                           className: 'dcu-sub dcu-grow',
-                          style: { cursor: item.type === 'file' ? 'default' : 'pointer' },
+                          style: { cursor: item.type === 'file' && !dirMode ? 'pointer' : item.type === 'file' ? 'default' : 'pointer' },
                           onClick: () => {
-                            if (item.type !== 'file') go(item.path)
+                            // A file is the thing you came here to pick, so
+                            // clicking its name picks it. It used to do nothing
+                            // at all — only folders responded — and with the
+                            // choose button rendered for folders alone, a file
+                            // could be looked at but not taken.
+                            if (item.type === 'file') {
+                              if (dirMode) return
+                              onPick(item.path)
+                              onClose()
+                              return
+                            }
+                            go(item.path)
                           },
                         },
                         item.name,
