@@ -244,6 +244,7 @@ const report = createReport('dsh-card-updater host')
     'note',
     'pairVia',
     'plain',
+    'preset',
     'primary',
     'syncPlain',
   ].join(','))

@@ -111,6 +111,9 @@ window.__ModuleLoader__.load({
       'flag.autoBump.d': '例如 V4.3.3 → V4.3.4；已是 MVU 版本号则追加 -mvu-N。开着会让 MVU 版的版本号比作者发布的领先一位，之后要靠手工理清，建议只在你确实需要时打开。',
       'label.file': '原版卡',
       'label.mvu': 'MVU 版',
+      'label.preset': '专用/专属预设',
+      'label.presetHint': '从贴子下载栏导入的预设文件（可留空）',
+      'preset.version': 'v{v}',
       'label.note': '备注',
       'label.noteHint': '例如：贴子里的 10.4 是角色投票，不是卡更新',
       'label.url': '来源链接',
@@ -386,6 +389,9 @@ window.__ModuleLoader__.load({
       'flag.autoBump.d': 'e.g. V4.3.3 -> V4.3.4; MVU strings gain -mvu-N. On, the copy reads one version ahead of what the author published, which then has to be untangled by hand; turn it on only when you want that.',
       'label.file': 'Original',
       'label.mvu': 'MVU',
+      'label.preset': 'Companion preset',
+      'label.presetHint': 'the preset file you imported from the thread (optional)',
+      'preset.version': 'v{v}',
       'label.note': 'Note',
       'label.noteHint': 'e.g. the 10.4 in this thread is a character poll, not a release',
       'label.url': 'Source link',
@@ -921,6 +927,10 @@ window.__ModuleLoader__.load({
       if (!entry) return next
       if (key === 'plain.path') entry.plain.path = value
       else if (key === 'mvu.path') entry.mvu.path = value
+      else if (key === 'preset.path') {
+        entry.preset = entry.preset || {}
+        entry.preset.path = value
+      }
       else if (key === 'plain.srcText') setSrc(entry.plain, value)
       else if (key === 'mvu.srcText') setSrc(entry.mvu, value)
       else if (key === 'primary.url') {
@@ -1896,6 +1906,38 @@ window.__ModuleLoader__.load({
             ),
           ),
         ),
+        // The preset the author hands out, which the page often mentions nowhere:
+        // one card's preset was in the download column with no word about it in
+        // the title or the body, so no amount of reading the page finds it. The
+        // row points at the file the reader imported and says which version that
+        // file is — the card itself is never touched.
+        h(
+          'div',
+          { className: 'dcu-slot' },
+          h('label', null, t('label.preset')),
+          h(
+            'div',
+            { className: 'dcu-row', style: { flexWrap: 'nowrap', gap: 6 } },
+            h('input', {
+              className: 'dcu-input',
+              placeholder: t('label.presetHint'),
+              value: (entry.preset && entry.preset.path) || '',
+              onChange: (ev) => patch(entry.id, 'preset.path', ev.target.value),
+            }),
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'dcu-btn tiny',
+                style: { flex: 'none' },
+                disabled: u.busy,
+                onClick: () => onPick('preset.path'),
+              },
+              t('btn.pickFile'),
+            ),
+            presetVersionOf(entry) ? h('span', { className: 'dcu-sub' }, t('preset.version').replace('{v}', presetVersionOf(entry))) : null,
+          ),
+        ),
         // A release page bumps its own version for reasons that have nothing to
         // do with the card — a character poll, a browser game, a separate APK
         // channel. The check cannot tell those apart, so the row keeps a line of
@@ -2000,10 +2042,36 @@ window.__ModuleLoader__.load({
     function browseEntryPath(cards, id, key) {
       const entry = (cards || []).find((c) => c.id === id)
       if (!entry) return null
-      const value = key === 'plain.path' ? entry.plain && entry.plain.path : entry.mvu && entry.mvu.path
+      // Read the slot the key names rather than naming the slots here: this used
+      // to spell out plain and mvu, so every slot added later came back to edit
+      // it.
+      const slot = entry[String(key || '').split('.')[0]]
+      const value = slot && slot.path
       if (!value) return null
       // Start the browser in the folder that already holds this slot's file.
       return String(value).replace(/[\\/][^\\/]*$/, '')
+    }
+
+    /**
+     * The version a preset file carries in its own name.
+     *
+     * Mirrors `presetVersionOf` in the host half, and has to: the host resolves
+     * the same question when it reports a card, and two implementations that
+     * drift apart would label one file two different ways. Reads the last
+     * version-shaped token, because a name often leads with the card it serves
+     * (`创世回廊v0.7.2 - 星月夜`) and the preset's own version is the tail. A
+     * trailing `(1)` is a download duplicate marker, not part of the version.
+     *
+     * @param {object} entry - the config entry, not the path: callers have this.
+     * @returns {string} the version, or '' when the name carries none.
+     */
+    function presetVersionOf(entry) {
+      const path = (entry && entry.preset && entry.preset.path) || ''
+      const name = String(path).split(/[\\/]/).pop() || ''
+      const base = name.replace(/\.json$/i, '').replace(/[^\S\r\n]*\(\d+\)[^\S\r\n]*$/, '')
+      const found = base.match(/[vV]?\d+(?:[.\-_]\d+)+|[vV]\d+(?![\d.])/g)
+      if (!found || !found.length) return ''
+      return found[found.length - 1].replace(/^[vV]/, '').replace(/[_-]/g, '.')
     }
 
     function formatSize(bytes) {
@@ -3144,8 +3212,11 @@ window.__ModuleLoader__.load({
             return
           }
           patch(req.id, req.key, path)
-          // Derive a usable source: a local path becomes a copy source.
-          patch(req.id, req.key === 'plain.path' ? 'plain.srcText' : 'mvu.srcText', path)
+          // Derive a usable source: a local path becomes a copy source. Only the
+          // two card slots have one — the preset is never read back into the card
+          // and never gets compared against anything, so it has no source.
+          if (req.key === 'plain.path') patch(req.id, 'plain.srcText', path)
+          else if (req.key === 'mvu.path') patch(req.id, 'mvu.srcText', path)
         },
         [blockedByDebug, browse, patch, u],
       )
@@ -3563,11 +3634,7 @@ window.__ModuleLoader__.load({
           browse
             ? h(BrowseModal, {
                 initialPath:
-                  (browse.key === 'plain.path'
-                    ? browseEntryPath(cards, browse.id, 'plain.path')
-                    : browseEntryPath(cards, browse.id, 'mvu.path')) ||
-                  (u.data && u.data.cardDir) ||
-                  null,
+                  browseEntryPath(cards, browse.id, browse.key) || (u.data && u.data.cardDir) || null,
                 onPick: applyPick,
                 onClose: () => setBrowse(null),
               })
