@@ -139,6 +139,7 @@ window.__ModuleLoader__.load({
       'primary.renamed': '作者改过贴子名，链接仍是同一个（现在叫 {to}）',
       'primary.current': '未发现比本地更新的版本',
       'primary.gated': '有下载条件',
+      'primary.presetVersion': '（预设版本 {v}）',
       'crash.title': '面板渲染失败',
       'crash.hint': '详情见浏览器控制台（F12 → Console）。',
       'primary.error': '检索失败',
@@ -414,6 +415,7 @@ window.__ModuleLoader__.load({
       'primary.renamed': 'The author renamed this thread; the link is unchanged (now: {to})',
       'primary.current': 'Nothing newer than the local card',
       'primary.gated': 'Download conditions',
+      'primary.presetVersion': ' (preset {v})',
       'crash.title': 'The panel could not be drawn',
       'crash.hint': 'See the browser console (F12 → Console) for the details.',
       'primary.error': 'watch failed',
@@ -1424,9 +1426,19 @@ window.__ModuleLoader__.load({
       // breaking one row.
       const gates = Array.isArray(state.gates) ? state.gates : []
       if (gates.length) {
+        // The companion preset runs on its own version line, separate from the
+        // card's, and the page's wording is the only place that number lives.
+        // Appended to this line rather than given one of its own: a new chip
+        // means a new branch in this render, and that is the shape that took the
+        // panel down twice.
+        const preset = String(state.presetVersion || '')
         bits.push({
           kind: 'info',
-          text: t('primary.gated') + '：' + gates.map((g) => t('gate.' + g)).join(' · '),
+          text:
+            t('primary.gated') +
+            '：' +
+            gates.map((g) => t('gate.' + g)).join(' · ') +
+            (preset ? t('primary.presetVersion').replace('{v}', preset) : ''),
         })
       }
       if (state.renamedFrom && state.title) {

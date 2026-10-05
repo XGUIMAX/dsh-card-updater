@@ -1054,9 +1054,34 @@ const report = createReport('dsh-card-updater host')
   // the panel draws — that is what keeps the rendering side untouched.
   report.eq('a preset name is not a download condition', host.detectGates('专用预设在这里'), [])
 
+/* --- 预设自己的版本线 ---
+   预设和卡是两条独立的发布线：这张卡页面上写的是「专属预设v6」，而卡本身在
+   0.5.6。本地没有预设的副本可比，所以只如实报出页面上写的版本号，不判新旧。 */
+report.group('the preset version line is read off the page')
+for (const [text, want] of [
+  ['专属预设v6（ny-gemini-v6.json）', '6'],
+  ['专属预设v5版本（ny-gemini-v5_1.json）', '5'],
+  ['专用预设 - 0.7.2 恢复防八股（v0.7.2_-_...json）', '0.7.2'],
+  ['专用预设更新0.7.2', '0.7.2'],
+  ['推荐使用此预设 - 0.7.2 防八股修复', '0.7.2'],
+  ['建议搭配通用预设v3', '3'],
+  ['专属预设版本 v1.4.0', '1.4.0'],
+  ['专用预设 v0.7.2', '0.7.2'],
+  ['本预设 2.0 已更新', '2.0'],
+]) {
+  report.eq(`「${text}」→ ${want}`, host.detectPresetVersion(text), want)
+}
+// Saying nothing is the normal case for most threads, and a version has to be
+// attached to a preset to count — 「预设」 on its own turns up everywhere.
+report.eq('a page with no preset says nothing', host.detectPresetVersion('这张卡没有预设相关内容'), '')
+report.eq('nor does a passing mention', host.detectPresetVersion('建议用预设打开，导入角色卡即可'), '')
+report.eq('a preset with no version says nothing', host.detectPresetVersion('专属预设'), '')
+report.eq('and neither does an unrelated number', host.detectPresetVersion('预设体系说明'), '')
+
 /* --- dsh-recommend-preset：推荐/建议预设，与「随卡附带」分开 ---
    两者的语义不同：上面那条是作者把预设塞进压缩包，这条是作者建议你另找一份。
    混在一个标记里，看的人不知道该去取什么。 */
+
 report.group('a suggested preset is kept apart from a shipped one')
 report.eq('建议使用预设 is a suggestion', host.detectExtras('建议使用预设开始'), ['recommended'])
 report.eq('推荐预设 is too', host.detectExtras('推荐预设见附件'), ['recommended'])
