@@ -133,6 +133,33 @@ const report = createReport('dsh-card-updater host')
   report.eq('nor is it one among other fields', host.detectAuthor('作者：本人\n世界书：有\n正则：有（状态栏）'), '')
   report.eq('a post that says nothing', host.detectAuthor('这张卡没有作者信息'), '')
 
+  // 贴子没写作者时，落到发帖人。索引站把发帖人放在 author 对象里，三个字段
+  // 各有强弱：display_name / global_name 是人对外用的名字，name 是账号句柄。
+  report.group('the poster, when the post names nobody')
+  report.eq(
+    'the display name wins over the handle',
+    host.threadSummary({ author: { id: 1, name: 'xeno_monado_a', global_name: '赤の石Akaseki', display_name: '赤の石Akaseki' } }).poster,
+    '赤の石Akaseki',
+  )
+  report.eq(
+    'the global name wins over the handle',
+    host.threadSummary({ author: { name: 'xeno_monado_a', global_name: '灰鸠「GoldRush」' } }).poster,
+    '灰鸠「GoldRush」',
+  )
+  report.eq(
+    'the handle is the last resort',
+    host.threadSummary({ author: { id: 1, name: 'xeno_monado_a' } }).poster,
+    'xeno_monado_a',
+  )
+  // 关键的一条：顶层的 `name` 是**帖子名**，不是人名。两者同名不同层，所以靠位置
+  // 区分而不是靠键名 —— 否则每张卡都会把帖子标题当成作者。
+  report.eq(
+    'a top-level name is the thread title, not a person',
+    host.threadSummary({ name: '来当小男友爆管人的米吧', title: 't' }).poster,
+    '',
+  )
+  report.eq('no author object means no poster', host.threadSummary({ title: 't' }).poster, '')
+
   // 为什么 checkPrimary 要先扫标题、再扫正文。
   //
   // 提取器取的是**找到的最大号**，而标题与正文里的数字含义不同：标题说的是
