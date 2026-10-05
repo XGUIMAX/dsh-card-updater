@@ -111,6 +111,8 @@ window.__ModuleLoader__.load({
       'flag.autoBump.d': '例如 V4.3.3 → V4.3.4；已是 MVU 版本号则追加 -mvu-N。开着会让 MVU 版的版本号比作者发布的领先一位，之后要靠手工理清，建议只在你确实需要时打开。',
       'label.file': '原版卡',
       'label.mvu': 'MVU 版',
+      'label.note': '备注',
+      'label.noteHint': '例如：贴子里的 10.4 是角色投票，不是卡更新',
       'label.url': '来源链接',
       'label.primary': '主要链接',
       'label.match': '版本关键词',
@@ -383,6 +385,8 @@ window.__ModuleLoader__.load({
       'flag.autoBump.d': 'e.g. V4.3.3 -> V4.3.4; MVU strings gain -mvu-N. On, the copy reads one version ahead of what the author published, which then has to be untangled by hand; turn it on only when you want that.',
       'label.file': 'Original',
       'label.mvu': 'MVU',
+      'label.note': 'Note',
+      'label.noteHint': 'e.g. the 10.4 in this thread is a character poll, not a release',
       'label.url': 'Source link',
       'label.primary': 'Release link',
       'label.match': 'Version marker',
@@ -924,6 +928,7 @@ window.__ModuleLoader__.load({
         entry.primary = entry.primary || {}
         entry.primary.match = value
       } else if (key === 'label') entry.label = value
+      else if (key === 'note') entry.note = value
       return next
     }
 
@@ -1878,6 +1883,21 @@ window.__ModuleLoader__.load({
               t('btn.pickFile'),
             ),
           ),
+        ),
+        // A release page bumps its own version for reasons that have nothing to
+        // do with the card — a character poll, a browser game, a separate APK
+        // channel. The check cannot tell those apart, so the row keeps a line of
+        // prose where the reader writes down what the bump actually was.
+        h(
+          'div',
+          { className: 'dcu-slot' },
+          h('label', null, t('label.note')),
+          h('input', {
+            className: 'dcu-input',
+            placeholder: t('label.noteHint'),
+            value: entry.note || '',
+            onChange: (ev) => patch(entry.id, 'note', ev.target.value),
+          }),
         ),
         ),
         primaryHint(entry),
