@@ -117,6 +117,19 @@ const report = createReport('dsh-card-updater host')
     host.extractVersionInfo('适用于酒馆 1.12.0'),
     { value: '1.12.0', kind: 'version' },
   )
+
+  // 为什么 checkPrimary 要先扫标题、再扫正文。
+  //
+  // 提取器取的是**找到的最大号**，而标题与正文里的数字含义不同：标题说的是
+  // "这一版是什么"，正文里则混着更新日志、发布日期、预设适配的模型。放在同一个
+  // 池子里取最高，正文的数字就会盖过标题 —— 这张卡标题写 10.4，整页扫出来是 10.7。
+  {
+    const title =
+      '【🏆管人调制】10.4角色投票/更新鲸鱼娘和牛肉插画🌟来当小男友爆管人的米吧！为了交房租只能把主播变成专属宠物了！大量色图/都市生活/拟真直播间/CG收集/部位开发/虚幻杯/二次元同人杯'
+    const body = `${title}\n更新记录：\n10.7 补了几张图\n2026年8月24日\n唯一推荐模型：Gemini3.7`
+    report.eq('the title states the release', host.extractVersionInfo(title), { value: '10.4', kind: 'version' })
+    report.eq('while the same page scanned whole picks a body number', host.extractVersion(body), '10.7')
+  }
   report.eq(
     'extractVersionInfo: a version on a line after a build number survives',
     host.extractVersionInfo('适用于酒馆 1.12.0\n版本 5.3'),
