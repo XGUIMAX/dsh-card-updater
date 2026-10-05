@@ -4,7 +4,7 @@ window.__ModuleLoader__.load({
   factory: (require) => {
     const react = require('react')
     const h = react.createElement
-    const { useState, useEffect, useCallback, Fragment } = react
+    const { useState, useEffect, useCallback, useRef, Fragment } = react
 
     const NS = 'settings.dsh-card-updater'
     let translate = (key) => key
@@ -20,7 +20,7 @@ window.__ModuleLoader__.load({
       nav: '卡片更新器',
       'entry.title': '卡片更新器',
       'panel.title': '卡片更新器',
-      'panel.saveHint': '改完内容请点右上角「保存」，否则关闭或重新载入时这些改动会丢失。',
+      'panel.saveHint': '改动会在关闭或重新载入时自动保存；也可以随时点右上角「保存」立即写入。',
       'panel.desc': '通过链接比对远端人物卡，更新原版卡，并把变更同步进 MVU 版卡。',
       'tab.cards': '卡片',
       'tab.settings': '合并设置',
@@ -299,7 +299,7 @@ window.__ModuleLoader__.load({
       nav: 'Card Updater',
       'entry.title': 'Card Updater',
       'panel.title': 'Card Updater',
-      'panel.saveHint': 'Press Save (top right) when you are done — closing or reloading the panel without it loses these edits.',
+      'panel.saveHint': 'Edits are written automatically when you close or reload; Save (top right) writes them now instead.',
       'panel.desc': 'Diff remote cards by link, refresh the original, and sync changes into the MVU card.',
       'tab.cards': 'Cards',
       'tab.settings': 'Settings',
@@ -576,7 +576,8 @@ window.__ModuleLoader__.load({
       '.dcu-wrap{display:flex;flex-direction:column;gap:12px;padding:8px 2px 28px}',
       // Header holds the identity on the left and the two top-level actions on
       // the right, so they stop trailing after the description text.
-      '.dcu-header{display:flex;align-items:flex-start;gap:12px;position:sticky;top:0;z-index:6;background:var(--dsw-alias-bg-base);padding:8px 2px 8px;margin:-8px -2px 0}',
+      '.dcu-header{display:flex;align-items:flex-start;gap:12px}',
+      '.dcu-sticky{position:sticky;top:0;z-index:6;display:flex;flex-direction:column;gap:6px;background:var(--dsw-alias-bg-base);padding:8px 2px 10px;margin:-8px -2px 0}',
       '.dcu-header-actions{display:flex;align-items:center;gap:8px;flex:none}',
       '.dcu-path{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary));word-break:break-all;margin-top:2px}',
       // One bar for the view switcher and the controls that go with it.
@@ -2933,6 +2934,22 @@ window.__ModuleLoader__.load({
       const [notice, setNotice] = useState('')
 
       /**
+       * The draft writer, held in a ref so the unmount effect below can call the
+       * current one.
+       *
+       * The panel's own close button only exists in the sidebar popup; when this
+       * is mounted as the settings section, the host owns the close and there is
+       * nothing to hook. Unmounting is the one moment that happens either way, so
+       * an edit still sitting in the draft gets written there — closing the panel
+       * is not a decision to throw work away.
+       */
+      const draftSaver = useRef(null)
+      useEffect(() => () => {
+        const write = draftSaver.current
+        if (write) void write()
+      }, [])
+
+      /**
        * Whether the card agent is working on any card right now.
        *
        * Writing to a card while the agent holds it would race: the agent keeps its
@@ -3113,6 +3130,38 @@ window.__ModuleLoader__.load({
         [u.data],
       )
 
+      /**
+       * Write the draft to the host without the "saved" toast.
+       *
+       * Used before anything that would otherwise discard it. `rescan` used to
+       * call `setDraft(null)` outright, on the reasoning that a rescan has
+       * nothing worth keeping — which is true of the host's own fields and false
+       * of everything typed by hand on a card row (the note, the preset path).
+       * Those live in the draft and nowhere else until this runs.
+       *
+       * @returns {Promise<boolean>} whether the write landed.
+       */
+      const saveDraft = useCallback(async () => {
+        if (!draft) return true
+        const base = u.data && u.data.config
+        const payload = base ? mergeHostState(draft, base) : draft
+        try {
+          // Straight to the bridge rather than through `run`: this is a
+          // housekeeping write on the way out, and a success line about it would
+          // be noise about something the reader did not ask for.
+          const res = await apiPost({ action: 'save', config: payload })
+          if (res && res.ok !== false) {
+            setDraft(null)
+            await u.load()
+            return true
+          }
+          return false
+        } catch {
+          return false
+        }
+      }, [draft, u])
+      draftSaver.current = saveDraft
+
       const save = useCallback(async () => {
         // The host writes into the same config this draft was copied from, so its
         // fields are re-taken from the latest state before writing back. Without
@@ -3168,6 +3217,11 @@ window.__ModuleLoader__.load({
       )
 
       const rescan = useCallback(async () => {
+        // Anything typed by hand lives in the draft until it is written, and this
+        // replaces the draft wholesale — the host's own fields come back from
+        // `suggest`, but a note or a preset path would not. Write first, so a
+        // rescan cannot be the thing that loses an edit.
+        await saveDraft()
         // `suggest` writes the rescan to disk itself, so there is nothing worth
         // keeping in a draft: reloading leaves the view reading the host's config
         // directly, which is also what lets a later check show up immediately.
@@ -3179,7 +3233,7 @@ window.__ModuleLoader__.load({
         } else if (res && res.error) {
           u.push(res.error, 'bad')
         }
-      }, [u])
+      }, [u, saveDraft])
 
       const pruneMissing = useCallback(async () => {
         const map = (u.data && u.data.missing) || {}
@@ -3389,6 +3443,14 @@ window.__ModuleLoader__.load({
           // Header: what this panel is, and the two things you would actually do
           // at the top level. Everything else is secondary and lives in the bar
           // below, instead of trailing after the title in one long run.
+          //
+          // The save hint is inside this same sticky block, not below it: an
+          // edit happens on a card row halfway down the page while Save lives up
+          // here, so both have to stay in view together or the reminder scrolls
+          // away exactly when it is needed.
+          h(
+            'div',
+            { className: 'dcu-sticky' },
           h(
             'div',
             { className: 'dcu-header' },
@@ -3454,6 +3516,7 @@ window.__ModuleLoader__.load({
           // 保存 is pressed, so closing or reloading the panel without that step
           // loses them, with nothing on screen to explain why.
           h('div', { className: 'dcu-sub' }, t('panel.saveHint')),
+          ),
           notice
             ? h(
                 'div',
