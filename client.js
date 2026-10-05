@@ -116,6 +116,8 @@ window.__ModuleLoader__.load({
       'label.presetHint': '从贴子下载栏导入的预设文件（可留空）',
       'preset.version': 'v{v}',
       'label.note': '备注',
+      'label.author': '作者',
+      'author.assumed': '（按贴主推断）',
       'label.noteHint': '例如：贴子里的 10.4 是角色投票，不是卡更新',
       'label.url': '来源链接',
       'label.primary': '主要链接',
@@ -396,6 +398,8 @@ window.__ModuleLoader__.load({
       'label.presetHint': 'the preset file you imported from the thread (optional)',
       'preset.version': 'v{v}',
       'label.note': 'Note',
+      'label.author': 'Author',
+      'author.assumed': ' (assumed: the poster)',
       'label.noteHint': 'e.g. the 10.4 in this thread is a character poll, not a release',
       'label.url': 'Source link',
       'label.primary': 'Release link',
@@ -1017,6 +1021,16 @@ window.__ModuleLoader__.load({
         bits.push(t('note.soloMvu'))
       }
       if (entry.updatedAt) bits.push(`${t('label.updated')} ${new Date(entry.updatedAt).toLocaleString()}`)
+      // Who wrote it. A post usually answers this in its own body; when it does
+      // not, the poster is the author. The mark after the name says which of the
+      // two this is — a name read off a line and a name assumed from who posted
+      // are not the same claim, and the reader is the one who would have to
+      // check.
+      const author = String((entry.primary && entry.primary.author) || '').trim()
+      if (author) {
+        const assumed = entry.primary.authorFromPoster ? t('author.assumed') : ''
+        bits.push(`${t('label.author')}：${author}${assumed}`)
+      }
       // The merge time gets its own line below instead of joining this one: at
       // the end of the subtitle it wrapped mid-timestamp and left a second row
       // reading "26/9/22 13:30:35".

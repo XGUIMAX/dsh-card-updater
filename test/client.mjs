@@ -542,6 +542,28 @@ function makeCtx() {
       report.ok(`  and comes out as markup with ${label}`, rendered.includes('dcu-chip'), '')
     }
 
+    // 作者名有两个来源，显示时要说清是哪一个：贴子里写「作者：某人」是一个事实，
+    // 没写而按贴主推断是另一个事实，读者对这两者的信任程度不同。
+    const subtitle = real.internals.subtitleOf
+    const withAuthor = (primary) => {
+      const say = subtitle({ plain: { path: 'a.json' }, mvu: { path: 'b.json' }, primary })
+      return say.includes('label.author')
+    }
+    report.ok('a named author shows on the row', withAuthor({ author: '灰鸠', authorFromPoster: false }), '')
+    report.ok('and so does one inferred from the poster', withAuthor({ author: '灰鸠', authorFromPoster: true }), '')
+    report.ok(
+      'the inferred one is marked as such',
+      subtitle({ plain: { path: 'a.json' }, primary: { author: '灰鸠', authorFromPoster: true } }).includes('author.assumed'),
+      '',
+    )
+    report.ok(
+      'a named one is not',
+      !subtitle({ plain: { path: 'a.json' }, primary: { author: '甲', authorFromPoster: false } }).includes('author.assumed'),
+      '',
+    )
+    report.ok('no author means no line about it', !withAuthor({}), '')
+    report.ok('nor when primary is missing entirely', !subtitle({ plain: { path: 'a.json' } }).includes('label.author'), '')
+
     // The boundary is what stands between a throw and a blank panel.
     //
     // Its contract is checked directly rather than by rendering through it:

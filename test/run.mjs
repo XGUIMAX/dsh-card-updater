@@ -118,6 +118,21 @@ const report = createReport('dsh-card-updater host')
     { value: '1.12.0', kind: 'version' },
   )
 
+  report.group('who wrote the card')
+  for (const [text, want] of [
+    ['作者：灰鸠', '灰鸠'],
+    ['作者: 灰鸠「GoldRush」', '灰鸠「GoldRush」'],
+    ['作者：某某某\n二改/二创：禁止', '某某某'],
+    ['Author: someone', 'someone'],
+  ]) {
+    report.eq(`「${text.split('\n')[0]}」→ ${want}`, host.detectAuthor(text), want)
+  }
+  // 「作者：本人」是在说"作者就是我"，不是在给一个叫"本人"的名字。回落到贴主名
+  // 是面板的事，这里必须返回空，否则会把那句话原样当成名字显示出来。
+  report.eq('作者：本人 is not a name', host.detectAuthor('作者：本人'), '')
+  report.eq('nor is it one among other fields', host.detectAuthor('作者：本人\n世界书：有\n正则：有（状态栏）'), '')
+  report.eq('a post that says nothing', host.detectAuthor('这张卡没有作者信息'), '')
+
   // 为什么 checkPrimary 要先扫标题、再扫正文。
   //
   // 提取器取的是**找到的最大号**，而标题与正文里的数字含义不同：标题说的是
