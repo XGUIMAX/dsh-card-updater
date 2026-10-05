@@ -20,6 +20,7 @@ window.__ModuleLoader__.load({
       nav: '卡片更新器',
       'entry.title': '卡片更新器',
       'panel.title': '卡片更新器',
+      'panel.saveHint': '改完内容请点右上角「保存」，否则关闭或重新载入时这些改动会丢失。',
       'panel.desc': '通过链接比对远端人物卡，更新原版卡，并把变更同步进 MVU 版卡。',
       'tab.cards': '卡片',
       'tab.settings': '合并设置',
@@ -298,6 +299,7 @@ window.__ModuleLoader__.load({
       nav: 'Card Updater',
       'entry.title': 'Card Updater',
       'panel.title': 'Card Updater',
+      'panel.saveHint': 'Press Save (top right) when you are done — closing or reloading the panel without it loses these edits.',
       'panel.desc': 'Diff remote cards by link, refresh the original, and sync changes into the MVU card.',
       'tab.cards': 'Cards',
       'tab.settings': 'Settings',
@@ -574,7 +576,7 @@ window.__ModuleLoader__.load({
       '.dcu-wrap{display:flex;flex-direction:column;gap:12px;padding:8px 2px 28px}',
       // Header holds the identity on the left and the two top-level actions on
       // the right, so they stop trailing after the description text.
-      '.dcu-header{display:flex;align-items:flex-start;gap:12px}',
+      '.dcu-header{display:flex;align-items:flex-start;gap:12px;position:sticky;top:0;z-index:6;background:var(--dsw-alias-bg-base);padding:8px 2px 8px;margin:-8px -2px 0}',
       '.dcu-header-actions{display:flex;align-items:center;gap:8px;flex:none}',
       '.dcu-path{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary));word-break:break-all;margin-top:2px}',
       // One bar for the view switcher and the controls that go with it.
@@ -3447,6 +3449,11 @@ window.__ModuleLoader__.load({
                 : null,
             ),
           ),
+          // Said right under the header, because the failure it prevents is
+          // forgetting: edits live in a draft and only reach the config when
+          // 保存 is pressed, so closing or reloading the panel without that step
+          // loses them, with nothing on screen to explain why.
+          h('div', { className: 'dcu-sub' }, t('panel.saveHint')),
           notice
             ? h(
                 'div',
